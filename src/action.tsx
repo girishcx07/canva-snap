@@ -45,7 +45,7 @@ export async function checkNameAge(formData: FormData) {
       name: '',
       source: 'https://api.agify.io',
     }
-    return latestNameInsight
+    return
   }
 
   const source = `https://api.agify.io/?name=${encodeURIComponent(name)}`
@@ -82,6 +82,4 @@ export async function checkNameAge(formData: FormData) {
       source,
     }
   }
-
-  return latestNameInsight
 }

@@ -8,6 +8,7 @@ import {
 } from '@vitejs/plugin-rsc/rsc'
 import type { ReactFormState } from 'react-dom/client'
 import { Root } from '../root.tsx'
+import { getGitHubBlobPreview } from '../repo-data.ts'
 import { matchRoute } from '../routes.ts'
 import { parseRenderRequest } from './request.tsx'
 
@@ -34,6 +35,11 @@ async function handler(request: Request): Promise<Response> {
   // differentiate RSC, SSR, action, etc.
   const renderRequest = parseRenderRequest(request)
   request = renderRequest.request
+
+  if (!renderRequest.isRsc && renderRequest.url.pathname === '/api/github/blob') {
+    return handleGitHubBlobApi(renderRequest.url)
+  }
+
   const routeMatch = matchRoute(renderRequest.url)
 
   // handle server function request
@@ -125,4 +131,33 @@ async function handler(request: Request): Promise<Response> {
 
 if (import.meta.hot) {
   import.meta.hot.accept()
+}
+
+async function handleGitHubBlobApi(url: URL) {
+  const owner = url.searchParams.get('owner')
+  const path = url.searchParams.get('path')
+  const repo = url.searchParams.get('repo')
+  const sha = url.searchParams.get('sha')
+  const size = Number(url.searchParams.get('size') ?? '0')
+
+  if (!owner || !path || !repo || !sha) {
+    return Response.json(
+      { error: 'Missing owner, repo, path, or sha query parameter.' },
+      { status: 400 },
+    )
+  }
+
+  const preview = await getGitHubBlobPreview({
+    owner,
+    path,
+    repo,
+    sha,
+    size: Number.isFinite(size) ? size : undefined,
+  })
+
+  return Response.json(preview, {
+    headers: {
+      'cache-control': 'private, max-age=60',
+    },
+  })
 }

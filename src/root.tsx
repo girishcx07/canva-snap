@@ -20,6 +20,7 @@ import {
 } from './action.tsx'
 import type { NameInsight } from './action.tsx'
 import { ClientApiPanel } from './components/demo/client-api-panel.tsx'
+import { RepoCodeBrowser } from './components/repo/repo-code-browser'
 import { Alert, AlertDescription, AlertTitle } from './components/ui/alert'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
@@ -42,6 +43,7 @@ import { Input } from './components/ui/input'
 import { Separator } from './components/ui/separator'
 import { Skeleton } from './components/ui/skeleton'
 import { cn } from './lib/utils'
+import { getGitHubRepoSnapshot } from './repo-data'
 import { getRscTodos, getSsrRepoSnapshot, type Todo } from './server-data'
 import {
   appRoutes,
@@ -70,9 +72,13 @@ export function Root(props: { routeMatch?: RouteMatch; url: URL }) {
 }
 
 function App(props: { routeMatch: RouteMatch; url: URL }) {
+  const isRepoHome = props.routeMatch.route.id === 'overview'
+
   return (
     <main className="min-h-svh bg-background">
-      <AppHeader routeMatch={props.routeMatch} url={props.url} />
+      {isRepoHome ? null : (
+        <AppHeader routeMatch={props.routeMatch} url={props.url} />
+      )}
       <Suspense fallback={<RoutePageFallback route={props.routeMatch.route} />}>
         <RoutePage routeMatch={props.routeMatch} />
       </Suspense>
@@ -218,24 +224,9 @@ function RoutePageFallback({ route }: { route: AppRoute }) {
 }
 
 async function OverviewPage() {
-  const [repo, todos, serverCounter, latestNameInsight] = await Promise.all([
-    getSsrRepoSnapshot(),
-    getRscTodos(),
-    getServerCounter(),
-    getLatestNameInsight(),
-  ])
+  const repo = await getGitHubRepoSnapshot()
 
-  return (
-    <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-6 sm:px-6 lg:grid-cols-2 lg:px-8">
-      <SsrCard repo={repo} />
-      <RscCard todos={todos} />
-      <ClientApiPanel />
-      <ServerActionCard
-        insight={latestNameInsight}
-        serverCounter={serverCounter}
-      />
-    </section>
-  )
+  return <RepoCodeBrowser snapshot={repo} />
 }
 
 async function SsrPage() {

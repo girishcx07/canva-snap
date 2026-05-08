@@ -19,11 +19,11 @@ export const appRoutes: AppRoute[] = [
   {
     capabilities: ['ssr', 'rsc', 'client', 'action'],
     description:
-      'Full mixed route with SSR HTML, RSC data, a hydrated island, and server actions.',
+      'GitHub-style repository browser powered by repo, tree, and blob API calls.',
     id: 'overview',
-    navLabel: 'Overview',
+    navLabel: 'Code',
     path: '/',
-    title: 'React server features with route boundaries',
+    title: 'GitHub code viewer',
   },
   {
     capabilities: ['ssr'],
