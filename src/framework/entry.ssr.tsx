@@ -10,6 +10,7 @@ export async function renderHTML(
   options: {
     formState?: ReactFormState
     nonce?: string
+    status?: number
     debugNojs?: boolean
   },
 ): Promise<{ stream: ReadableStream<Uint8Array>; status?: number }> {
@@ -31,7 +32,7 @@ export async function renderHTML(
   const bootstrapScriptContent =
     await import.meta.viteRsc.loadBootstrapScriptContent('index')
   let htmlStream: ReadableStream<Uint8Array>
-  let status: number | undefined
+  let status = options.status
   try {
     htmlStream = await renderToReadableStream(<SsrRoot />, {
       bootstrapScriptContent: options?.debugNojs

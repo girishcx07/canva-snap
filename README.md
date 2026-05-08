@@ -12,6 +12,7 @@ The demo uses free public APIs to show the main React server feature boundaries:
 - RSC: `src/server-data.ts` fetches JSONPlaceholder todos inside the server component tree.
 - Client: `src/components/demo/client-api-panel.tsx` hydrates a client island and fetches JSONPlaceholder users in the browser.
 - Server actions: `src/action.tsx` keeps the starter counter and adds an Agify form action.
+- Routing: `src/routes.ts` defines the app route table used by SSR status, RSC payloads, and client navigation.
 
 ## Run
 
@@ -25,6 +26,8 @@ Open `http://127.0.0.1:5173/`.
 Useful endpoints:
 
 - `/_.rsc` shows the RSC Flight payload.
+- `/ssr`, `/rsc`, `/client`, `/actions`, and `/runtime` are route-specific demos.
+- Add `_.rsc` to a route path for its Flight payload, for example `/rsc_.rsc`.
 - `/?__nojs` renders the progressive server action path without hydration.
 
 ## Build

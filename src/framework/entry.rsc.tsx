@@ -8,6 +8,7 @@ import {
 } from '@vitejs/plugin-rsc/rsc'
 import type { ReactFormState } from 'react-dom/client'
 import { Root } from '../root.tsx'
+import { matchRoute } from '../routes.ts'
 import { parseRenderRequest } from './request.tsx'
 
 // The schema of payload which is serialized into RSC stream on rsc environment
@@ -21,6 +22,8 @@ export type RscPayload = {
   returnValue?: { ok: boolean; data: unknown }
   // server action form state (e.g. useActionState) of progressive enhancement case
   formState?: ReactFormState
+  // route status calculated before either RSC or SSR rendering
+  status?: number
 }
 
 // the plugin by default assumes `rsc` entry having default export of request handler.
@@ -31,6 +34,7 @@ async function handler(request: Request): Promise<Response> {
   // differentiate RSC, SSR, action, etc.
   const renderRequest = parseRenderRequest(request)
   request = renderRequest.request
+  const routeMatch = matchRoute(renderRequest.url)
 
   // handle server function request
   let returnValue: RscPayload['returnValue'] | undefined
@@ -78,9 +82,10 @@ async function handler(request: Request): Promise<Response> {
   // so that new render reflects updated state from server function call
   // to achieve single round trip to mutate and fetch from server.
   const rscPayload: RscPayload = {
-    root: <Root url={renderRequest.url} />,
+    root: <Root routeMatch={routeMatch} url={renderRequest.url} />,
     formState,
     returnValue,
+    status: routeMatch.status,
   }
   const rscOptions = { temporaryReferences }
   const rscStream = renderToReadableStream<RscPayload>(rscPayload, rscOptions)
@@ -88,7 +93,7 @@ async function handler(request: Request): Promise<Response> {
   // Respond RSC stream without HTML rendering as decided by `RenderRequest`
   if (renderRequest.isRsc) {
     return new Response(rscStream, {
-      status: actionStatus,
+      status: actionStatus ?? routeMatch.status,
       headers: {
         'content-type': 'text/x-component;charset=utf-8',
       },
@@ -104,6 +109,7 @@ async function handler(request: Request): Promise<Response> {
   >('ssr', 'index')
   const ssrResult = await ssrEntryModule.renderHTML(rscStream, {
     formState,
+    status: actionStatus ?? routeMatch.status,
     // allow quick simulation of javascript disabled browser
     debugNojs: renderRequest.url.searchParams.has('__nojs'),
   })
