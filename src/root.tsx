@@ -21,6 +21,9 @@ import {
 import type { NameInsight } from './action.tsx'
 import { ClientApiPanel } from './components/demo/client-api-panel.tsx'
 import { RepoCodeBrowser } from './components/repo/repo-code-browser'
+import { RepoCodeBrowserSkeleton } from './components/repo/repo-code-browser-skeleton'
+import { ThemeProvider } from './components/theme/theme-provider'
+import { getThemeBootstrapScript } from './components/theme/theme-utils'
 import { Alert, AlertDescription, AlertTitle } from './components/ui/alert'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
@@ -45,10 +48,12 @@ import { Skeleton } from './components/ui/skeleton'
 import { cn } from './lib/utils'
 import { getGitHubRepoSnapshot } from './repo-data'
 import { getRscTodos, getSsrRepoSnapshot, type Todo } from './server-data'
+import { Link } from './framework/link'
 import {
   appRoutes,
   matchRoute,
   type AppRoute,
+  type RepoRoute,
   type RouteCapability,
   type RouteMatch,
 } from './routes'
@@ -57,15 +62,20 @@ export function Root(props: { routeMatch?: RouteMatch; url: URL }) {
   const routeMatch = props.routeMatch ?? matchRoute(props.url)
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="UTF-8" />
         <link rel="icon" type="image/svg+xml" href="/vite.svg" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script
+          dangerouslySetInnerHTML={{ __html: getThemeBootstrapScript() }}
+        />
         <title>{routeMatch.route.title}</title>
       </head>
       <body>
-        <App routeMatch={routeMatch} url={props.url} />
+        <ThemeProvider>
+          <App routeMatch={routeMatch} url={props.url} />
+        </ThemeProvider>
       </body>
     </html>
   )
@@ -153,8 +163,9 @@ function AppNav({ pathname }: { pathname: string }) {
         const isActive = route.path === pathname
 
         return (
-          <a
+          <Link
             key={route.id}
+            cache="force-cache"
             aria-current={isActive ? 'page' : undefined}
             className={cn(
               'inline-flex h-8 items-center rounded-lg border px-2.5 text-sm font-medium transition-colors hover:bg-muted',
@@ -165,7 +176,7 @@ function AppNav({ pathname }: { pathname: string }) {
             href={route.path}
           >
             {route.navLabel}
-          </a>
+          </Link>
         )
       })}
     </nav>
@@ -175,7 +186,7 @@ function AppNav({ pathname }: { pathname: string }) {
 function RoutePage({ routeMatch }: { routeMatch: RouteMatch }) {
   switch (routeMatch.route.id) {
     case 'overview':
-      return <OverviewPage />
+      return <OverviewPage route={routeMatch.repo} />
     case 'ssr':
       return <SsrPage />
     case 'rsc':
@@ -192,6 +203,10 @@ function RoutePage({ routeMatch }: { routeMatch: RouteMatch }) {
 }
 
 function RoutePageFallback({ route }: { route: AppRoute }) {
+  if (route.id === 'overview') {
+    return <RepoCodeBrowserSkeleton />
+  }
+
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-6 sm:px-6 lg:grid-cols-2 lg:px-8">
       <Card>
@@ -223,10 +238,10 @@ function RoutePageFallback({ route }: { route: AppRoute }) {
   )
 }
 
-async function OverviewPage() {
+async function OverviewPage({ route }: { route?: RepoRoute }) {
   const repo = await getGitHubRepoSnapshot()
 
-  return <RepoCodeBrowser snapshot={repo} />
+  return <RepoCodeBrowser route={route} snapshot={repo} />
 }
 
 async function SsrPage() {

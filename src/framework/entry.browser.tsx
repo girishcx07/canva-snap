@@ -8,6 +8,7 @@ import {
 import React from 'react'
 import { createRoot, hydrateRoot } from 'react-dom/client'
 import { rscStream } from 'rsc-html-stream/client'
+import { RepoCodeBrowserSkeleton } from '../components/repo/repo-code-browser-skeleton'
 import { Badge } from '../components/ui/badge'
 import {
   Card,
@@ -18,13 +19,31 @@ import {
   CardTitle,
 } from '../components/ui/card'
 import { Skeleton } from '../components/ui/skeleton'
+import {
+  applyBrowserThemeMode,
+  getBrowserThemeMode,
+  getThemeBootstrapScript,
+} from '../components/theme/theme-utils'
 import { appRoutes, matchRoute, type AppRoute } from '../routes'
 import type { RscPayload } from './entry.rsc'
 import { GlobalErrorBoundary } from './error-boundary'
+import { Link } from './link'
+import {
+  createNavigationState,
+  dispatchRscNavigationEvent,
+  getLinkNavigationCacheMode,
+  getNavigationCacheMode,
+  type RscNavigationCacheMode,
+} from './navigation'
 import { createRscRenderRequest } from './request'
 
 type PayloadState = RscPayload | Promise<RscPayload>
-type PayloadUpdateOptions = { transition?: boolean }
+type PayloadUpdateOptions = {
+  cache?: RscNavigationCacheMode
+  transition?: boolean
+}
+
+applyBrowserThemeMode(getBrowserThemeMode())
 
 async function main() {
   // stash `setPayload` function to trigger re-rendering
@@ -36,6 +55,9 @@ async function main() {
     // initial RSC stream is injected in SSR stream as <script>...FLIGHT_DATA...</script>
     rscStream,
   )
+  const payloadCache = new Map<string, PayloadState>([
+    [window.location.href, initialPayload],
+  ])
 
   // browser root component to (re-)render RSC payload as state
   function BrowserRoot() {
@@ -58,7 +80,17 @@ async function main() {
 
     // re-fetch/render on client side navigation
     React.useEffect(() => {
-      return listenNavigation(() => fetchRscPayload())
+      return listenNavigation((navigation) => {
+        if (navigation.cache === 'client') {
+          dispatchRscNavigationEvent({
+            cache: navigation.cache,
+            href: window.location.href,
+          })
+          return
+        }
+
+        fetchRscPayload({ cache: navigation.cache })
+      })
     }, [])
 
     return payload.root
@@ -84,9 +116,44 @@ async function main() {
   }
 
   // re-fetch RSC and trigger re-rendering
-  function fetchRscPayload(options?: PayloadUpdateOptions) {
-    const renderRequest = createRscRenderRequest(window.location.href)
-    setPayload(createFromFetch<RscPayload>(fetch(renderRequest)), options)
+  function fetchRscPayload(options: PayloadUpdateOptions = {}) {
+    const cacheMode = options.cache ?? 'default'
+    const cacheKey = window.location.href
+
+    if (cacheMode === 'force-cache') {
+      const cachedPayload = payloadCache.get(cacheKey)
+
+      if (cachedPayload) {
+        setPayload(cachedPayload, { transition: options.transition })
+        return
+      }
+    }
+
+    const renderRequest = createRscRenderRequest(cacheKey)
+    const payloadPromise = createFromFetch<RscPayload>(
+      fetch(
+        renderRequest,
+        cacheMode === 'no-store' ? { cache: 'no-store' } : undefined,
+      ),
+    )
+
+    applyBrowserThemeMode(getBrowserThemeMode())
+
+    if (cacheMode !== 'no-store') {
+      payloadCache.set(cacheKey, payloadPromise)
+      void payloadPromise.then(
+        (payload) => {
+          payloadCache.set(cacheKey, payload)
+        },
+        () => {
+          if (payloadCache.get(cacheKey) === payloadPromise) {
+            payloadCache.delete(cacheKey)
+          }
+        },
+      )
+    }
+
+    setPayload(payloadPromise, { transition: options.transition })
   }
 
   // register a handler which will be internally called by React
@@ -97,11 +164,15 @@ async function main() {
       id,
       body: await encodeReply(args, { temporaryReferences }),
     })
+    const cacheKey = window.location.href
+    payloadCache.delete(cacheKey)
     const payloadPromise = createFromFetch<RscPayload>(fetch(renderRequest), {
       temporaryReferences,
     })
+    payloadCache.set(cacheKey, payloadPromise)
     setPayload(payloadPromise)
     const payload = await payloadPromise
+    payloadCache.set(cacheKey, payload)
     setPayload(payload)
     const { ok, data } = payload.returnValue!
     if (!ok) throw data
@@ -133,20 +204,26 @@ async function main() {
 }
 
 // a little helper to setup events interception for client side navigation
-function listenNavigation(onNavigation: () => void) {
-  window.addEventListener('popstate', onNavigation)
+function listenNavigation(
+  onNavigation: (navigation: { cache: RscNavigationCacheMode }) => void,
+) {
+  function onPopState(event: PopStateEvent) {
+    onNavigation({ cache: getNavigationCacheMode(event.state) })
+  }
+
+  window.addEventListener('popstate', onPopState)
 
   const oldPushState = window.history.pushState
   window.history.pushState = function (...args) {
     const res = oldPushState.apply(this, args)
-    onNavigation()
+    onNavigation({ cache: getNavigationCacheMode(args[0]) })
     return res
   }
 
   const oldReplaceState = window.history.replaceState
   window.history.replaceState = function (...args) {
     const res = oldReplaceState.apply(this, args)
-    onNavigation()
+    onNavigation({ cache: getNavigationCacheMode(args[0]) })
     return res
   }
 
@@ -167,14 +244,18 @@ function listenNavigation(onNavigation: () => void) {
       !e.defaultPrevented
     ) {
       e.preventDefault()
-      history.pushState(null, '', link.href)
+      history.pushState(
+        createNavigationState(getLinkNavigationCacheMode(link)),
+        '',
+        link.href,
+      )
     }
   }
   document.addEventListener('click', onClick)
 
   return () => {
     document.removeEventListener('click', onClick)
-    window.removeEventListener('popstate', onNavigation)
+    window.removeEventListener('popstate', onPopState)
     window.history.pushState = oldPushState
     window.history.replaceState = oldReplaceState
   }
@@ -188,74 +269,89 @@ function isPromisePayload(value: PayloadState): value is Promise<RscPayload> {
 
 function BrowserDocumentFallback() {
   const routeMatch = matchRoute(new URL(window.location.href))
+  const themeMode = getBrowserThemeMode()
+  applyBrowserThemeMode(themeMode)
 
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={themeMode === 'dark' ? 'dark' : undefined}
+      style={{ colorScheme: themeMode }}
+    >
       <head>
         <meta charSet="UTF-8" />
         <link rel="icon" type="image/svg+xml" href="/vite.svg" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script
+          dangerouslySetInnerHTML={{ __html: getThemeBootstrapScript() }}
+        />
         <title>{routeMatch.route.title}</title>
       </head>
       <body>
         <main className="min-h-svh bg-background">
-          <section className="border-b bg-muted/30">
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
-              <div className="flex max-w-3xl flex-col gap-3">
-                <div className="flex flex-wrap gap-2">
-                  {routeMatch.route.capabilities.map((capability) => (
-                    <Badge key={capability} variant="outline">
-                      {capability.toUpperCase()}
-                    </Badge>
-                  ))}
+          {routeMatch.route.id === 'overview' ? (
+            <RepoCodeBrowserSkeleton />
+          ) : (
+            <>
+              <section className="border-b bg-muted/30">
+                <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
+                  <div className="flex max-w-3xl flex-col gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      {routeMatch.route.capabilities.map((capability) => (
+                        <Badge key={capability} variant="outline">
+                          {capability.toUpperCase()}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <h1 className="text-3xl font-semibold tracking-normal sm:text-4xl">
+                        {routeMatch.route.title}
+                      </h1>
+                      <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
+                        {routeMatch.route.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <FallbackNav route={routeMatch.route} />
+
+                  <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
+                    <p>Request: {window.location.href}</p>
+                    <p>Status: {routeMatch.status}</p>
+                    <p>Streaming RSC payload</p>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <h1 className="text-3xl font-semibold tracking-normal sm:text-4xl">
-                    {routeMatch.route.title}
-                  </h1>
-                  <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-                    {routeMatch.route.description}
-                  </p>
-                </div>
-              </div>
+              </section>
 
-              <FallbackNav route={routeMatch.route} />
-
-              <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
-                <p>Request: {window.location.href}</p>
-                <p>Status: {routeMatch.status}</p>
-                <p>Streaming RSC payload</p>
-              </div>
-            </div>
-          </section>
-
-          <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-6 sm:px-6 lg:grid-cols-2 lg:px-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>{routeMatch.route.navLabel}</CardTitle>
-                <CardDescription>{routeMatch.route.description}</CardDescription>
-                <CardAction>
-                  <Badge variant="secondary">Loading</Badge>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <Skeleton className="h-5 w-2/3" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-4/5" />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <Skeleton className="h-5 w-1/2" />
-                <Skeleton className="h-4 w-3/4" />
-              </CardHeader>
-              <CardContent className="grid grid-cols-3 gap-2">
-                <Skeleton className="h-16" />
-                <Skeleton className="h-16" />
-                <Skeleton className="h-16" />
-              </CardContent>
-            </Card>
-          </section>
+              <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-6 sm:px-6 lg:grid-cols-2 lg:px-8">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{routeMatch.route.navLabel}</CardTitle>
+                    <CardDescription>{routeMatch.route.description}</CardDescription>
+                    <CardAction>
+                      <Badge variant="secondary">Loading</Badge>
+                    </CardAction>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3">
+                    <Skeleton className="h-5 w-2/3" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-4/5" />
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-1/2" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-3 gap-2">
+                    <Skeleton className="h-16" />
+                    <Skeleton className="h-16" />
+                    <Skeleton className="h-16" />
+                  </CardContent>
+                </Card>
+              </section>
+            </>
+          )}
         </main>
       </body>
     </html>
@@ -266,8 +362,9 @@ function FallbackNav({ route: currentRoute }: { route: AppRoute }) {
   return (
     <nav aria-label="App routes" className="flex flex-wrap gap-2">
       {appRoutes.map((route) => (
-        <a
+        <Link
           key={route.id}
+          cache="force-cache"
           aria-current={route.id === currentRoute.id ? 'page' : undefined}
           className={
             route.id === currentRoute.id
@@ -277,7 +374,7 @@ function FallbackNav({ route: currentRoute }: { route: AppRoute }) {
           href={route.path}
         >
           {route.navLabel}
-        </a>
+        </Link>
       ))}
     </nav>
   )

@@ -9,8 +9,15 @@ export type AppRoute = {
   title: string
 }
 
+export type RepoRoute = {
+  branch: string
+  kind: 'blob' | 'tree'
+  path: string | null
+}
+
 export type RouteMatch = {
   pathname: string
+  repo?: RepoRoute
   route: AppRoute
   status: number
 }
@@ -83,6 +90,17 @@ export const notFoundRoute: AppRoute = {
 
 export function matchRoute(url: URL): RouteMatch {
   const pathname = normalizePathname(url.pathname)
+  const repo = matchRepoRoute(pathname)
+
+  if (repo) {
+    return {
+      pathname,
+      repo,
+      route: appRoutes[0],
+      status: 200,
+    }
+  }
+
   const route = appRoutes.find((item) => item.path === pathname)
 
   if (route) {
@@ -104,10 +122,39 @@ export function matchRoute(url: URL): RouteMatch {
   }
 }
 
+function matchRepoRoute(pathname: string): RepoRoute | null {
+  const parts = pathname.split('/').filter(Boolean)
+  const kind = parts[0]
+
+  if (kind !== 'blob' && kind !== 'tree') {
+    return null
+  }
+
+  const branch = parts[1] ? decodePathPart(parts[1]) : ''
+
+  if (!branch) {
+    return null
+  }
+
+  return {
+    branch,
+    kind,
+    path: parts.slice(2).map(decodePathPart).join('/') || null,
+  }
+}
+
 export function normalizePathname(pathname: string) {
   if (pathname === '/') {
     return pathname
   }
 
   return pathname.replace(/\/+$/, '') || '/'
+}
+
+function decodePathPart(value: string) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
 }

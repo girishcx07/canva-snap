@@ -1,11 +1,7 @@
 import { createHighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
-export type CodeTheme =
-  | 'github-light'
-  | 'github-dark'
-  | 'vitesse-light'
-  | 'vitesse-dark'
+export type CodeTheme = 'github-light' | 'github-dark'
 
 export type HighlightedCode = {
   background?: string
@@ -24,8 +20,6 @@ export type HighlightedToken = {
 export const codeThemeOptions = [
   { label: 'Light', value: 'github-light' },
   { label: 'Dark', value: 'github-dark' },
-  { label: 'Vitesse', value: 'vitesse-light' },
-  { label: 'Night', value: 'vitesse-dark' },
 ] satisfies { label: string; value: CodeTheme }[]
 
 const languageLoaders = {
@@ -63,8 +57,6 @@ const languageLoaders = {
 const themeLoaders = {
   'github-dark': () => import('shiki/themes/github-dark.mjs'),
   'github-light': () => import('shiki/themes/github-light.mjs'),
-  'vitesse-dark': () => import('shiki/themes/vitesse-dark.mjs'),
-  'vitesse-light': () => import('shiki/themes/vitesse-light.mjs'),
 } satisfies Record<CodeTheme, () => Promise<unknown>>
 
 const loadedLanguages = new Set<string>()

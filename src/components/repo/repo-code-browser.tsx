@@ -39,6 +39,8 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from '@/components/ui/toggle-group'
+import { useTheme } from '@/components/theme/theme-provider'
+import { navigate, navigationEventName } from '@/framework/navigation'
 import {
   codeThemeOptions,
   highlightCode,
@@ -52,8 +54,10 @@ import type {
   GitHubRepoSnapshot,
   RepoNode,
 } from '@/repo-data'
+import { matchRoute, type RepoRoute } from '@/routes'
 
 type RepoCodeBrowserProps = {
+  route?: RepoRoute
   snapshot: GitHubRepoSnapshot
 }
 
@@ -69,7 +73,9 @@ type HighlightState =
 
 type OpenNode = (node: RepoNode | null) => void
 
-export function RepoCodeBrowser({ snapshot }: RepoCodeBrowserProps) {
+export function RepoCodeBrowser({ route, snapshot }: RepoCodeBrowserProps) {
+  const { codeTheme, setMode } = useTheme()
+  const initialSelectedPath = route?.path ?? null
   const [blobPreviews, setBlobPreviews] = useState<
     Record<string, BlobPreviewState>
   >({})
@@ -78,8 +84,9 @@ export function RepoCodeBrowser({ snapshot }: RepoCodeBrowserProps) {
     () => new Set(),
   )
   const [query, setQuery] = useState('')
-  const [theme, setTheme] = useState<CodeTheme>('github-light')
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [selectedPath, setSelectedPath] = useState<string | null>(
+    initialSelectedPath,
+  )
   const deferredQuery = useDeferredValue(query)
   const allNodes = useMemo(() => collectNodes(snapshot.entries), [snapshot.entries])
   const searchIndex = useMemo(
@@ -108,8 +115,38 @@ export function RepoCodeBrowser({ snapshot }: RepoCodeBrowserProps) {
   }, [queryText, searchIndex])
   const landingEntries = queryText ? searchResults : snapshot.entries
 
+  useEffect(() => {
+    setSelectedPath(initialSelectedPath)
+    setExpandedPaths(getInitialExpandedPaths(initialSelectedPath, route?.kind))
+  }, [initialSelectedPath, route?.kind])
+
+  useEffect(() => {
+    function syncSelectedPathFromLocation() {
+      const nextRoute = matchRoute(new URL(window.location.href)).repo
+      const nextSelectedPath = nextRoute?.path ?? null
+
+      setSelectedPath(nextSelectedPath)
+      setExpandedPaths(getInitialExpandedPaths(nextSelectedPath, nextRoute?.kind))
+    }
+
+    window.addEventListener('popstate', syncSelectedPathFromLocation)
+    window.addEventListener(navigationEventName, syncSelectedPathFromLocation)
+
+    return () => {
+      window.removeEventListener('popstate', syncSelectedPathFromLocation)
+      window.removeEventListener(navigationEventName, syncSelectedPathFromLocation)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedNode?.type === 'file') {
+      void loadBlobPreview(selectedNode)
+    }
+  }, [selectedNode?.path, selectedNode?.sha])
+
   function openNode(node: RepoNode | null) {
     setSelectedPath(node?.path ?? null)
+    pushRepoUrl(snapshot, node)
 
     if (!node) {
       return
@@ -209,6 +246,10 @@ export function RepoCodeBrowser({ snapshot }: RepoCodeBrowserProps) {
         setQuery={setQuery}
         snapshot={snapshot}
         selectedNode={selectedNode}
+        theme={codeTheme}
+        onThemeChange={(nextTheme) =>
+          setMode(nextTheme === 'github-dark' ? 'dark' : 'light')
+        }
         onReset={() => openNode(null)}
       />
 
@@ -222,9 +263,8 @@ export function RepoCodeBrowser({ snapshot }: RepoCodeBrowserProps) {
           searchResults={searchResults}
           selectedNode={selectedNode}
           snapshot={snapshot}
-          theme={theme}
+          theme={codeTheme}
           onCopyPreview={copyPreview}
-          onThemeChange={setTheme}
           onOpenNode={openNode}
           onToggleFolder={toggleFolder}
         />
@@ -246,12 +286,16 @@ function RepoHeader({
   selectedNode,
   setQuery,
   snapshot,
+  theme,
+  onThemeChange,
   onReset,
 }: {
   query: string
   selectedNode: RepoNode | null
   setQuery: (value: string) => void
   snapshot: GitHubRepoSnapshot
+  theme: CodeTheme
+  onThemeChange: (theme: CodeTheme) => void
   onReset: () => void
 }) {
   return (
@@ -274,6 +318,7 @@ function RepoHeader({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <CodeThemeSelector theme={theme} onThemeChange={onThemeChange} />
           <Button type="button" variant="outline" size="sm">
             <GitBranchIcon data-icon="inline-start" />
             {snapshot.branch}
@@ -381,7 +426,6 @@ function RepoWorkspace({
   snapshot,
   theme,
   onCopyPreview,
-  onThemeChange,
   onOpenNode,
   onToggleFolder,
 }: {
@@ -395,7 +439,6 @@ function RepoWorkspace({
   snapshot: GitHubRepoSnapshot
   theme: CodeTheme
   onCopyPreview: (path: string, content: string) => void
-  onThemeChange: (theme: CodeTheme) => void
   onOpenNode: OpenNode
   onToggleFolder: (path: string) => void
 }) {
@@ -442,7 +485,6 @@ function RepoWorkspace({
           node={selectedNode}
           theme={theme}
           onCopyPreview={onCopyPreview}
-          onThemeChange={onThemeChange}
           onOpenNode={onOpenNode}
         />
       )}
@@ -498,7 +540,6 @@ function FileView({
   node,
   theme,
   onCopyPreview,
-  onThemeChange,
   onOpenNode,
 }: {
   blobState?: BlobPreviewState
@@ -507,7 +548,6 @@ function FileView({
   node: RepoNode
   theme: CodeTheme
   onCopyPreview: (path: string, content: string) => void
-  onThemeChange: (theme: CodeTheme) => void
   onOpenNode: OpenNode
 }) {
   const preview =
@@ -523,7 +563,6 @@ function FileView({
         </CardTitle>
         <CardDescription className="truncate">{node.path}</CardDescription>
         <CardAction className="flex flex-wrap justify-end gap-2">
-          <CodeThemeSelector theme={theme} onThemeChange={onThemeChange} />
           <Badge variant="outline">{node.language}</Badge>
           <Button
             type="button"
@@ -1131,6 +1170,52 @@ function getAncestorPaths(targetPath: string) {
   }
 
   return ancestors
+}
+
+function getInitialExpandedPaths(
+  targetPath: string | null,
+  kind: RepoRoute['kind'] | undefined,
+) {
+  const paths = new Set<string>()
+
+  if (!targetPath) {
+    return paths
+  }
+
+  for (const ancestor of getAncestorPaths(targetPath)) {
+    paths.add(ancestor)
+  }
+
+  if (kind === 'tree') {
+    paths.add(targetPath)
+  }
+
+  return paths
+}
+
+function pushRepoUrl(snapshot: GitHubRepoSnapshot, node: RepoNode | null) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const href = getRepoHref(snapshot, node)
+
+  if (`${window.location.pathname}${window.location.search}` !== href) {
+    navigate(href, { cache: 'client' })
+  }
+}
+
+function getRepoHref(snapshot: GitHubRepoSnapshot, node: RepoNode | null) {
+  if (!node) {
+    return '/'
+  }
+
+  const kind = node.type === 'folder' ? 'tree' : 'blob'
+  return `/${kind}/${encodeRepoPath(snapshot.branch)}/${encodeRepoPath(node.path)}`
+}
+
+function encodeRepoPath(value: string) {
+  return value.split('/').map(encodeURIComponent).join('/')
 }
 
 function isAncestorPath(folderPath: string, targetPath: string) {
