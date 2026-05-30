@@ -9,8 +9,8 @@ import { ExpandIcon, XIcon } from 'lucide-react'
 
 import { ease } from '../engine/easing'
 import { buildMorphPlan, sampleMorph, type MorphItem } from '../engine/morph'
-import { scheduleSlide, sampleAt, timelineDuration } from '../engine/timeline'
-import type { SampledFrame } from '../engine/animation'
+import { scheduleSlideSteps, sampleStepsAt } from '../engine/timeline'
+import { getPreset, sampleKeyframes, type SampledFrame } from '../engine/animation'
 import { fireTrigger, runActions, type ActionContext } from '../engine/events'
 import { LayerView, extraTransform } from '../registry'
 import type { ID, Layer, Project, Transform } from '../types'
@@ -31,13 +31,17 @@ export function Player({
     from: initialIndex,
     progress: 1, // morph progress (1 = settled)
   })
+  const [clickStep, setClickStep] = useState(0)
   const [frames, setFrames] = useState<Record<ID, SampledFrame>>({})
+  const [stepAnim, setStepAnim] = useState<{ step: number; startMs: number; durationMs: number } | null>(null)
   const [overrides, setOverrides] = useState<Record<ID, boolean>>({})
   const stateRef = useRef<Record<string, unknown>>({})
   const containerRef = useRef<HTMLDivElement>(null)
 
   const slide = project.slides[nav.index]
   const fromSlide = project.slides[nav.from]
+
+  const steps = useMemo(() => scheduleSlideSteps(slide), [slide])
 
   const go = useCallback(
     (target: 'next' | 'prev' | number) => {
@@ -57,18 +61,36 @@ export function Player({
     [project.slides.length],
   )
 
-  // Drive the morph transition and then the per-slide entrance timeline from a
-  // single rAF loop keyed on the *transition identity*. Updating progress/frames
-  // must not re-trigger this effect (that was the bug that stalled the morph).
+  const triggerNext = useCallback(() => {
+    if (clickStep < steps.length - 1) {
+      const nextStep = clickStep + 1
+      setClickStep(nextStep)
+      setStepAnim({
+        step: nextStep,
+        startMs: performance.now(),
+        durationMs: steps[nextStep]?.durationMs ?? 0,
+      })
+    } else {
+      go('next')
+    }
+  }, [clickStep, steps, go])
+
+  // Reset steps and start step 0 on slide change
+  useEffect(() => {
+    setClickStep(0)
+    setStepAnim(null)
+  }, [nav.index])
+
+  // Drive the morph transition and then start the step 0 animation
   useEffect(() => {
     const morphMs =
       nav.from === nav.index || slide.transition.type === 'none'
         ? 0
         : slide.transition.durationMs
-    const scheduled = scheduleSlide(slide)
-    const total = timelineDuration(scheduled)
+
     const start = performance.now()
     let raf = 0
+
     const loop = (t: number) => {
       const elapsed = t - start
       if (elapsed < morphMs) {
@@ -76,21 +98,86 @@ export function Player({
         raf = requestAnimationFrame(loop)
         return
       }
+      
+      // Morph transition has finished
       setNav((n) => (n.progress >= 1 ? n : { ...n, progress: 1 }))
-      const tl = elapsed - morphMs
-      setFrames(total > 0 ? sampleAt(scheduled, tl) : {})
-      if (tl < total) raf = requestAnimationFrame(loop)
+      
+      // Initialize active step 0 animation
+      setStepAnim((prev) => {
+        if (prev && prev.step === 0) return prev
+        return { step: 0, startMs: performance.now(), durationMs: steps[0]?.durationMs ?? 0 }
+      })
     }
+
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [nav.index, nav.from, slide])
+  }, [nav.index, nav.from, slide, steps])
+
+  // Drive local step animations
+  useEffect(() => {
+    if (!stepAnim || stepAnim.step !== clickStep) return
+
+    let raf = 0
+    const start = stepAnim.startMs
+    const dur = stepAnim.durationMs
+
+    const loop = (t: number) => {
+      const elapsed = t - start
+      
+      setFrames(sampleStepsAt(steps, clickStep, elapsed))
+
+      if (elapsed < dur) {
+        raf = requestAnimationFrame(loop)
+      } else {
+        setFrames(sampleStepsAt(steps, clickStep, dur))
+      }
+    }
+
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [stepAnim, clickStep, steps])
 
   // Event runtime context.
   const ctx = useMemo<ActionContext>(
     () => ({
       showLayer: (id) => setOverrides((o) => ({ ...o, [id]: true })),
       hideLayer: (id) => setOverrides((o) => ({ ...o, [id]: false })),
-      animateLayer: () => {},
+      animateLayer: (id, presetId, options) => {
+        const preset = getPreset(presetId)
+        if (!preset) return
+        const duration = options?.durationMs ?? preset.defaultDurationMs
+        const delay = options?.delayMs ?? 0
+        const easing = options?.easing ?? preset.defaultEasing ?? 'easeOut'
+        const start = performance.now()
+        const loop = (t: number) => {
+          const elapsed = t - start
+          if (elapsed < delay) {
+            requestAnimationFrame(loop)
+            return
+          }
+          
+          const activeElapsed = elapsed - delay
+          const p = Math.min(1, activeElapsed / duration)
+          const eased = ease(easing, p)
+          const frame = sampleKeyframes(preset.keyframes, eased)
+          
+          setFrames((prev) => ({
+            ...prev,
+            [id]: frame,
+          }))
+          
+          if (p < 1) {
+            requestAnimationFrame(loop)
+          } else {
+            const isAttention = preset.category === 'attention'
+            setFrames((prev) => ({
+              ...prev,
+              [id]: isAttention ? REST : frame,
+            }))
+          }
+        }
+        requestAnimationFrame(loop)
+      },
       changeState: (key, value) => {
         stateRef.current[key] = value
       },
@@ -112,7 +199,7 @@ export function Player({
   // Keyboard navigation.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === ' ') go('next')
+      if (e.key === 'ArrowRight' || e.key === ' ') triggerNext()
       else if (e.key === 'ArrowLeft') go('prev')
       else if (e.key === 'Escape') onExit?.()
       else {
@@ -128,7 +215,7 @@ export function Player({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [go, onExit, slide, ctx])
+  }, [go, triggerNext, onExit, slide, ctx])
 
   const onLayerClick = (layer: Layer) => onLayerTrigger(layer, 'click')
   const onLayerTrigger = (layer: Layer, trigger: 'click' | 'hover') => {
@@ -137,6 +224,7 @@ export function Player({
     void runActions(
       bindings.flatMap((b) => b.actions),
       ctx,
+      layer.id,
     )
   }
 

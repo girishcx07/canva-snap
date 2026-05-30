@@ -188,16 +188,61 @@ export function addSlide(project: Project, afterId?: ID): Project {
   return touch({ ...project, slides })
 }
 
+function duplicateAndLinkLayers(
+  layers: Layer[],
+): { nextOriginals: Layer[]; nextClones: Layer[] } {
+  const nextOriginals: Layer[] = []
+  const nextClones: Layer[] = []
+
+  for (const layer of layers) {
+    let morphKey = layer.morphKey
+    let updatedLayer = { ...layer }
+    
+    if (!morphKey) {
+      morphKey = uid('morph')
+      updatedLayer.morphKey = morphKey
+    }
+
+    const cloned: Layer = {
+      ...structuredClone(updatedLayer),
+      id: uid('layer'),
+      // Keep exact same name and morphKey for seamless cross-slide morphing
+    }
+
+    if (layer.children) {
+      const { nextOriginals: childOrigs, nextClones: childCloned } = duplicateAndLinkLayers(layer.children)
+      updatedLayer.children = childOrigs
+      cloned.children = childCloned
+    }
+
+    nextOriginals.push(updatedLayer)
+    nextClones.push(cloned)
+  }
+
+  return { nextOriginals, nextClones }
+}
+
 export function duplicateSlide(project: Project, slideId: ID): Project {
   const index = project.slides.findIndex((s) => s.id === slideId)
   if (index < 0) return project
-  const copy: Slide = {
-    ...structuredClone(project.slides[index]),
-    id: uid('slide'),
-    name: `${project.slides[index].name} copy`,
-    layers: project.slides[index].layers.map(cloneLayer),
+  
+  const originalSlide = project.slides[index]
+  const { nextOriginals, nextClones } = duplicateAndLinkLayers(originalSlide.layers)
+  
+  const updatedOriginalSlide: Slide = {
+    ...originalSlide,
+    layers: nextOriginals,
   }
+  
+  const copy: Slide = {
+    ...structuredClone(originalSlide),
+    id: uid('slide'),
+    name: `${originalSlide.name} copy`,
+    layers: nextClones,
+  }
+  
   const slides = [...project.slides]
+  slides[index] = updatedOriginalSlide
   slides.splice(index + 1, 0, copy)
   return touch({ ...project, slides })
 }

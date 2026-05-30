@@ -150,6 +150,74 @@ export function Canvas({ store }: { store: EditorStore }) {
     return () => anim.cancel()
   }, [preview])
 
+  // Global copy-paste keyboard listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      ) {
+        return
+      }
+
+      const isMod = e.metaKey || e.ctrlKey
+
+      if (isMod && e.key.toLowerCase() === 'c') {
+        if (selected[0]) {
+          const target = slide.layers.find((l) => l.id === selected[0])
+          if (target) {
+            e.preventDefault()
+            ;(window as any)._copiedLayer = {
+              layer: structuredClone(target),
+              sourceSlideId: slide.id,
+            }
+          }
+        }
+      }
+
+      if (isMod && e.key.toLowerCase() === 'v') {
+        const clipboard = (window as any)._copiedLayer as { layer: Layer; sourceSlideId: string } | undefined
+        if (clipboard) {
+          e.preventDefault()
+          
+          const sourceLayer = clipboard.layer
+          const sameSlide = clipboard.sourceSlideId === slide.id
+          
+          let morphKey = sourceLayer.morphKey
+          
+          if (!sameSlide) {
+            if (!morphKey) {
+              morphKey = `morph_${Math.random().toString(36).slice(2, 10)}`
+              store.patchLayer(sourceLayer.id, { morphKey })
+              sourceLayer.morphKey = morphKey
+            }
+          } else {
+            morphKey = morphKey ? `${morphKey}-copy` : undefined
+          }
+
+          const pastedLayer: Layer = {
+            ...structuredClone(sourceLayer),
+            id: `layer_${Math.random().toString(36).slice(2, 10)}`,
+            name: sameSlide ? `${sourceLayer.name} copy` : sourceLayer.name,
+            morphKey,
+            transform: {
+              ...sourceLayer.transform,
+              x: sourceLayer.transform.x + (sameSlide ? 24 : 0),
+              y: sourceLayer.transform.y + (sameSlide ? 24 : 0),
+            },
+          }
+          
+          store.addLayer(pastedLayer)
+          store.select([pastedLayer.id])
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selected, slide, store])
+
   // Drop an element dragged from a sidebar panel onto the canvas at the cursor.
   // Payload is JSON: { type, data?, iconify? } (or a plain type string).
   function onDrop(e: React.DragEvent) {

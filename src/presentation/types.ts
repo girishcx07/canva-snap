@@ -155,6 +155,7 @@ export type Slide = {
   layers: Layer[]
   transition: SlideTransition
   timeline?: Timeline
+  animationOrder?: ID[]
   notes: string
   // Auto-advance duration for autoplay; undefined = manual.
   durationMs?: number

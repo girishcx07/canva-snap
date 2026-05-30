@@ -95,7 +95,7 @@ function title(text: string, animate = false): Layer {
     transform: { x: 80, y: 70, width: 1120, height: 70 },
     style: { fontSize: 40, fontWeight: 800, color: '#0f172a' },
     data: { text },
-    animations: animate ? [entrance('slide-in')] : [],
+    events: animate ? [entrance('slide-in')] : [],
   })
 }
 
@@ -151,7 +151,7 @@ export function createSampleProject(): Project {
         transform: { x: 120, y: 410, width: 900, height: 100 },
         style: { fontSize: 72, fontWeight: 800, color: '#0f172a' },
         data: { text: 'CSS Flexbox' },
-        animations: [entrance('slide-in')],
+        events: [entrance('slide-in')],
       }),
       layer({
         type: 'text',
@@ -160,7 +160,7 @@ export function createSampleProject(): Project {
         transform: { x: 122, y: 530, width: 800, height: 50 },
         style: { fontSize: 26, color: '#475569' },
         data: { text: 'Watch the layout morph as the code changes' },
-        animations: [entrance('fade-in', 250)],
+        events: [entrance('fade-in', 250)],
       }),
     ]),
 
@@ -214,8 +214,8 @@ export function createSampleProject(): Project {
         transform: { x: 560, y: 550, width: 180, height: 56 },
         style: { fill: '#7c3aed', color: '#ffffff', borderRadius: 14, fontSize: 18, fontWeight: 700 },
         data: { label: 'Restart' },
-        animations: [attention('pulse')],
         events: [
+          attention('pulse'),
           {
             id: uid('evt'),
             trigger: 'click',
@@ -239,26 +239,40 @@ export function createSampleProject(): Project {
   }
 }
 
-function entrance(presetId: string, delayMs = 0): AnimationInstance {
+function entrance(presetId: string, delayMs = 0): EventBinding {
   return {
-    id: uid('anim'),
-    presetId,
+    id: uid('evt'),
     trigger: 'slide-enter',
-    delayMs,
-    durationMs: 600,
-    easing: 'easeOut',
-    repeat: 0,
+    actions: [
+      {
+        type: 'animate-layer',
+        params: {
+          layerId: 'self',
+          presetId,
+          delayMs,
+          durationMs: 600,
+          easing: 'easeOut',
+        },
+      },
+    ],
   }
 }
 
-function attention(presetId: string): AnimationInstance {
+function attention(presetId: string): EventBinding {
   return {
-    id: uid('anim'),
-    presetId,
+    id: uid('evt'),
     trigger: 'slide-enter',
-    delayMs: 600,
-    durationMs: 700,
-    easing: 'easeInOut',
-    repeat: 2,
+    actions: [
+      {
+        type: 'animate-layer',
+        params: {
+          layerId: 'self',
+          presetId,
+          delayMs: 600,
+          durationMs: 700,
+          easing: 'easeInOut',
+        },
+      },
+    ],
   }
 }

@@ -11,6 +11,7 @@ import {
   LayoutTemplateIcon,
   type LucideIcon,
   PanelLeftCloseIcon,
+  PlayIcon,
   ShapesIcon,
   SmileIcon,
   SparklesIcon,
@@ -31,6 +32,7 @@ import {
   ShapesPanel,
   TemplatesPanel,
   TextPanel,
+  PlaybackPanel,
 } from './panels'
 
 type RailId =
@@ -43,6 +45,7 @@ type RailId =
   | 'icons'
   | 'animations'
   | 'layers'
+  | 'playback'
 
 const RAIL: { id: RailId; label: string; icon: LucideIcon }[] = [
   { id: 'templates', label: 'Templates', icon: LayoutTemplateIcon },
@@ -54,6 +57,7 @@ const RAIL: { id: RailId; label: string; icon: LucideIcon }[] = [
   { id: 'icons', label: 'Icons', icon: SmileIcon },
   { id: 'animations', label: 'Animate', icon: SparklesIcon },
   { id: 'layers', label: 'Layers', icon: LayersIcon },
+  { id: 'playback', label: 'Playback', icon: PlayIcon },
 ]
 
 export function Sidebar({ store }: { store: EditorStore }) {
@@ -155,5 +159,7 @@ function PanelContent({ id, store }: { id: RailId; store: EditorStore }) {
       return <AnimationsPanel store={store} />
     case 'layers':
       return <LayersPanel store={store} />
+    case 'playback':
+      return <PlaybackPanel store={store} />
   }
 }

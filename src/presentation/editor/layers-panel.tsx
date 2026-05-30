@@ -82,7 +82,7 @@ export function LayersPanel({ store }: { store: EditorStore }) {
                 {layer.name}
               </span>
             )}
-            {layer.animations.length > 0 && (
+            {layer.events?.some((e) => e.actions.some((a) => a.type === 'animate-layer')) && (
               <SparklesIcon
                 className="size-3 shrink-0 text-primary"
                 aria-label="Has animation"

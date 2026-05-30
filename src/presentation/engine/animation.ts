@@ -23,7 +23,91 @@ export type SampledFrame = {
 const REST: SampledFrame = { x: 0, y: 0, rotation: 0, scale: 1, opacity: 1 }
 
 export const ANIMATION_PRESETS: AnimationPreset[] = [
-  // Entrance
+  // --- Canva Featured Presets ---
+  preset('simple', 'Simple', 'entrance', 600, [
+    { offset: 0, transform: { y: 30, opacity: 0 } },
+    { offset: 1, transform: { y: 0, opacity: 1 } },
+  ]),
+  preset('sleek', 'Sleek', 'entrance', 700, [
+    { offset: 0, transform: { x: -30, y: 15, scale: 0.95, opacity: 0 } },
+    { offset: 1, transform: { x: 0, y: 0, scale: 1, opacity: 1 } },
+  ]),
+  preset('fun', 'Fun', 'entrance', 800, [
+    { offset: 0, transform: { scale: 0.6, opacity: 0 } },
+    { offset: 0.6, transform: { scale: 1.05, opacity: 1 } },
+    { offset: 0.8, transform: { scale: 0.97, opacity: 1 } },
+    { offset: 1, transform: { scale: 1, opacity: 1 } },
+  ]),
+  preset('party', 'Party', 'entrance', 800, [
+    { offset: 0, transform: { rotation: -12, scale: 0.8, opacity: 0 } },
+    { offset: 0.4, transform: { rotation: 8, scale: 1.1, opacity: 1 } },
+    { offset: 0.7, transform: { rotation: -4, scale: 0.95, opacity: 1 } },
+    { offset: 1, transform: { rotation: 0, scale: 1, opacity: 1 } },
+  ]),
+  preset('corporate', 'Corporate', 'entrance', 650, [
+    { offset: 0, transform: { x: 60, opacity: 0 } },
+    { offset: 1, transform: { x: 0, opacity: 1 } },
+  ]),
+  preset('chill', 'Chill', 'entrance', 900, [
+    { offset: 0, transform: { x: 15, y: -15, opacity: 0 } },
+    { offset: 1, transform: { x: 0, y: 0, opacity: 1 } },
+  ]),
+
+  // --- Canva General Presets ---
+  preset('rise', 'Rise', 'entrance', 600, [
+    { offset: 0, transform: { y: 60, opacity: 0 } },
+    { offset: 1, transform: { y: 0, opacity: 1 } },
+  ]),
+  preset('pan', 'Pan', 'entrance', 600, [
+    { offset: 0, transform: { x: -60, opacity: 0 } },
+    { offset: 1, transform: { x: 0, opacity: 1 } },
+  ]),
+  preset('fade', 'Fade', 'entrance', 500, [
+    { offset: 0, transform: { opacity: 0 } },
+    { offset: 1, transform: { opacity: 1 } },
+  ]),
+  preset('wipe', 'Wipe', 'entrance', 600, [
+    { offset: 0, transform: { scale: 0.1, opacity: 0 } },
+    { offset: 1, transform: { scale: 1, opacity: 1 } },
+  ]),
+  preset('pop', 'Pop', 'entrance', 500, [
+    { offset: 0, transform: { scale: 0.4, opacity: 0 } },
+    { offset: 1, transform: { scale: 1, opacity: 1 } },
+  ]),
+  preset('drift', 'Drift', 'entrance', 800, [
+    { offset: 0, transform: { x: -30, y: -15, opacity: 0 } },
+    { offset: 1, transform: { x: 0, y: 0, opacity: 1 } },
+  ]),
+  preset('tectonic', 'Tectonic', 'entrance', 850, [
+    { offset: 0, transform: { y: 80, scale: 1.2, opacity: 0 } },
+    { offset: 1, transform: { y: 0, scale: 1, opacity: 1 } },
+  ]),
+  preset('baseline', 'Baseline', 'entrance', 600, [
+    { offset: 0, transform: { y: 40, opacity: 0 } },
+    { offset: 1, transform: { y: 0, opacity: 1 } },
+  ]),
+  preset('stomp', 'Stomp', 'entrance', 400, [
+    { offset: 0, transform: { scale: 2.2, opacity: 0 } },
+    { offset: 1, transform: { scale: 1, opacity: 1 } },
+  ]),
+  preset('scrapbook', 'Scrapbook', 'entrance', 800, [
+    { offset: 0, transform: { x: -30, y: -15, rotation: -4, scale: 0.95, opacity: 0 } },
+    { offset: 1, transform: { x: 0, y: 0, rotation: 0, scale: 1, opacity: 1 } },
+  ]),
+  preset('neon', 'Neon', 'entrance', 600, [
+    { offset: 0, transform: { scale: 0.9, opacity: 0 } },
+    { offset: 0.5, transform: { scale: 1.05, opacity: 0.6 } },
+    { offset: 0.7, transform: { scale: 0.95, opacity: 0.8 } },
+    { offset: 1, transform: { scale: 1, opacity: 1 } },
+  ]),
+  preset('bounce-in', 'Bounce In', 'entrance', 700, [
+    { offset: 0, transform: { y: -80, opacity: 0 } },
+    { offset: 0.6, transform: { y: 10, opacity: 1 } },
+    { offset: 0.8, transform: { y: -5, opacity: 1 } },
+    { offset: 1, transform: { y: 0, opacity: 1 } },
+  ]),
+
+  // --- Standard Entrance/Exit Presets (Retained for compatibility) ---
   preset('fade-in', 'Fade In', 'entrance', 500, [
     { offset: 0, transform: { opacity: 0 } },
     { offset: 1, transform: { opacity: 1 } },
@@ -36,12 +120,11 @@ export const ANIMATION_PRESETS: AnimationPreset[] = [
     { offset: 0, transform: { scale: 0.8, opacity: 0 } },
     { offset: 1, transform: { scale: 1, opacity: 1 } },
   ]),
-  preset('pop-in', 'Pop', 'entrance', 600, [
+  preset('pop-in', 'Pop In', 'entrance', 600, [
     { offset: 0, transform: { scale: 0, opacity: 0 } },
     { offset: 0.7, transform: { scale: 1.08, opacity: 1 } },
     { offset: 1, transform: { scale: 1, opacity: 1 } },
   ]),
-  // Exit
   preset('fade-out', 'Fade Out', 'exit', 400, [
     { offset: 0, transform: { opacity: 1 } },
     { offset: 1, transform: { opacity: 0 } },
@@ -50,7 +133,6 @@ export const ANIMATION_PRESETS: AnimationPreset[] = [
     { offset: 0, transform: { scale: 1, opacity: 1 } },
     { offset: 1, transform: { scale: 0, opacity: 0 } },
   ]),
-  // Attention
   preset('bounce', 'Bounce', 'attention', 700, [
     { offset: 0, transform: { y: 0 } },
     { offset: 0.5, transform: { y: -24 } },
@@ -67,7 +149,6 @@ export const ANIMATION_PRESETS: AnimationPreset[] = [
     { offset: 0.5, transform: { scale: 1.1 } },
     { offset: 1, transform: { scale: 1 } },
   ]),
-  // Advanced (these cooperate with the morph engine at slide boundaries)
   preset('morph', 'Morph', 'advanced', 600, [
     { offset: 0, transform: { opacity: 0, scale: 0.96 } },
     { offset: 1, transform: { opacity: 1, scale: 1 } },
