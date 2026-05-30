@@ -1,12 +1,11 @@
 'use client'
 
-// Code presentation component. Reuses the repo's shiki highlighter.
-// - present mode: clips to the `visibleRange` window and translates so the
-//   range animates (smooth scroll) when it changes between slides.
-// - editor mode: shows the full code; when the layer is selected it becomes
-//   scrollable so the author can move up/down, and the viewable window
-//   (`visibleRange`) is drawn as a highlighted band so it is clear which lines
-//   will be shown when presenting.
+// Code presentation component with a window chrome (mac-style dots, centered
+// title, optional VSCode-style file tabs) and three body modes:
+//  - present: clipped reveal window that scrolls via the morph engine
+//  - editor (unselected): full highlighted code + a viewable-range band
+//  - editor (selected, single file): highlighted editing — a transparent
+//    textarea overlays the shiki-highlighted code so tokens stay visible.
 
 import { useEffect, useRef, useState } from 'react'
 
@@ -14,17 +13,23 @@ import { highlightCode, type HighlightedCode } from '@/lib/code-highlighter'
 import { useTheme } from '@/components/theme/theme-provider'
 import { cn } from '@/lib/utils'
 
+export type CodeFile = { name: string; code: string; language: string }
+
 export type CodeBlockData = {
   code: string
   language: string
+  title?: string
   showLineNumbers?: boolean
-  // 1-based inclusive [start, end] window of lines to reveal/scroll to.
   visibleRange?: [number, number]
-  // 1-based lines kept bright; everything else is dimmed (focus mode).
   focusLines?: number[]
-  // 1-based lines marked as added / removed (diff mode).
   diff?: { added?: number[]; removed?: number[] }
   fontSize?: number
+  // Presentation reveal of the code on slide enter.
+  reveal?: 'none' | 'typing' | 'lines'
+  // Optional multi-file window (VSCode-style tabs). When present, the active
+  // file is shown; `activeFile` drives file-switching during a presentation.
+  files?: CodeFile[]
+  activeFile?: number
 }
 
 export function CodeBlock({
@@ -42,74 +47,108 @@ export function CodeBlock({
 }) {
   const { codeTheme } = useTheme()
   const [hl, setHl] = useState<HighlightedCode | null>(null)
+  const [tab, setTab] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const preRef = useRef<HTMLPreElement>(null)
+
+  const files = data.files
+  const active = data.activeFile ?? tab
+  const file: CodeFile = files?.[active] ?? {
+    name: data.title ?? 'main',
+    code: data.code,
+    language: data.language,
+  }
+  const editable = mode === 'editor' && interactive && !files
+
+  const typing = mode === 'present' && data.reveal === 'typing'
+  const lineReveal = mode === 'present' && data.reveal === 'lines'
+  const [revealed, setRevealed] = useState(1e9)
+
+  // Reveal animation on enter (typing = chars, lines = line count).
+  useEffect(() => {
+    if (!typing && !lineReveal) return setRevealed(1e9)
+    setRevealed(0)
+    const total = typing ? file.code.length : file.code.split('\n').length
+    const stepN = typing ? 2 : 1
+    const ms = typing ? 18 : 200
+    const id = setInterval(() => {
+      setRevealed((r) => {
+        const n = r + stepN
+        if (n >= total) {
+          clearInterval(id)
+          return 1e9
+        }
+        return n
+      })
+    }, ms)
+    return () => clearInterval(id)
+  }, [typing, lineReveal, file.code])
+
+  const displayCode = typing ? file.code.slice(0, revealed) : file.code
 
   useEffect(() => {
-    let active = true
-    highlightCode({ code: data.code, language: data.language, theme: codeTheme }).then(
-      (result) => active && setHl(result),
+    let on = true
+    highlightCode({ code: displayCode, language: file.language, theme: codeTheme }).then(
+      (r) => on && setHl(r),
     )
     return () => {
-      active = false
+      on = false
     }
-  }, [data.code, data.language, codeTheme])
+  }, [displayCode, file.language, codeTheme])
 
   const fontSize = data.fontSize ?? 16
   const lineHeight = Math.round(fontSize * 1.6)
-  const lines = hl?.lines ?? data.code.split('\n').map(() => [])
+  const lines = hl?.lines ?? file.code.split('\n').map(() => [])
   const added = new Set(data.diff?.added ?? [])
   const removed = new Set(data.diff?.removed ?? [])
   const focus = data.focusLines && data.focusLines.length > 0
   const [start, end] = data.visibleRange ?? [1, lines.length]
   const editor = mode === 'editor'
 
-  // When entering edit, scroll so the viewable band is in view.
   useEffect(() => {
     if (editor && interactive && scrollRef.current) {
       scrollRef.current.scrollTop = (start - 1) * lineHeight
     }
   }, [editor, interactive, start, lineHeight])
 
+  const codeStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+    fontSize,
+    lineHeight: `${lineHeight}px`,
+  }
+
   const line = (tokens: HighlightedCode['lines'][number], i: number) => {
-    const lineNo = i + 1
-    const dimmed = !editor && focus && !data.focusLines!.includes(lineNo)
-    const isAdded = added.has(lineNo)
-    const isRemoved = removed.has(lineNo)
+    const n = i + 1
+    const dimmed = !editor && focus && !data.focusLines!.includes(n)
+    const hidden = lineReveal && n > revealed
+    const isAdded = added.has(n)
+    const isRemoved = removed.has(n)
     return (
       <div
-        key={lineNo}
+        key={n}
         className="flex whitespace-pre"
         style={{
           height: lineHeight,
-          opacity: dimmed ? 0.32 : 1,
-          transition: 'opacity 400ms ease',
+          opacity: hidden ? 0 : dimmed ? 0.32 : 1,
+          transition: 'opacity 300ms ease',
           background: isAdded
-            ? 'rgba(46, 160, 67, 0.18)'
+            ? 'rgba(46,160,67,0.18)'
             : isRemoved
-              ? 'rgba(248, 81, 73, 0.18)'
+              ? 'rgba(248,81,73,0.18)'
               : undefined,
         }}
       >
         {data.showLineNumbers !== false && (
-          <span
-            className="mr-4 inline-block shrink-0 select-none text-right opacity-40"
-            style={{ width: '2.5em' }}
-          >
-            {isAdded ? '+' : isRemoved ? '-' : lineNo}
+          <span className="mr-4 inline-block w-8 shrink-0 select-none text-right opacity-40">
+            {isAdded ? '+' : isRemoved ? '-' : n}
           </span>
         )}
         <span>
           {tokens.length === 0
             ? '\u00a0'
-            : tokens.map((token, ti) => (
-                <span
-                  key={ti}
-                  style={{
-                    color: token.color,
-                    fontStyle: token.fontStyle === 1 ? 'italic' : undefined,
-                  }}
-                >
-                  {token.content}
+            : tokens.map((t, ti) => (
+                <span key={ti} style={{ color: t.color, fontStyle: t.fontStyle === 1 ? 'italic' : undefined }}>
+                  {t.content}
                 </span>
               ))}
         </span>
@@ -117,85 +156,103 @@ export function CodeBlock({
     )
   }
 
-  // --- Editor: full code, scrollable when selected, with viewable band -------
+  // Window chrome -----------------------------------------------------------
+  const chrome = (body: React.ReactNode) => (
+    <div
+      className={cn('flex flex-col overflow-hidden rounded-xl border border-black/10 shadow-lg', className)}
+      style={{ background: hl?.background ?? 'var(--card)', color: hl?.foreground, height: '100%' }}
+    >
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-white/10 px-3" style={{ background: 'rgba(0,0,0,0.18)' }}>
+        <span className="size-3 rounded-full bg-[#ff5f57]" />
+        <span className="size-3 rounded-full bg-[#febc2e]" />
+        <span className="size-3 rounded-full bg-[#28c840]" />
+        {files && files.length > 0 ? (
+          <div className="ml-3 flex items-end gap-1 overflow-x-auto text-xs">
+            {files.map((f, i) => (
+              <button
+                key={f.name + i}
+                onClick={() => setTab(i)}
+                className={cn(
+                  'rounded-t-md px-2.5 py-1 whitespace-nowrap',
+                  i === active ? 'bg-white/15 font-medium' : 'opacity-60 hover:opacity-100',
+                )}
+              >
+                {f.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="absolute left-1/2 -translate-x-1/2 text-xs opacity-70">
+            {data.title ?? file.language}
+          </span>
+        )}
+      </div>
+      <div className="relative min-h-0 flex-1">{body}</div>
+    </div>
+  )
+
+  // Editing: transparent textarea over highlighted code ----------------------
+  if (editable) {
+    return chrome(
+      <div className="relative h-full" style={{ ...codeStyle }}>
+        <pre
+          ref={preRef}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 m-0 overflow-hidden whitespace-pre p-3"
+          style={codeStyle}
+        >
+          {lines.map((tokens, i) => (
+            <div key={i}>
+              {tokens.length === 0
+                ? '\u00a0'
+                : tokens.map((t, ti) => (
+                    <span key={ti} style={{ color: t.color, fontStyle: t.fontStyle === 1 ? 'italic' : undefined }}>
+                      {t.content}
+                    </span>
+                  ))}
+            </div>
+          ))}
+        </pre>
+        <textarea
+          spellCheck={false}
+          value={file.code}
+          onChange={(e) => onChange?.(e.target.value)}
+          onScroll={(e) => {
+            const el = e.currentTarget
+            if (preRef.current) preRef.current.style.transform = `translate(${-el.scrollLeft}px, ${-el.scrollTop}px)`
+          }}
+          className="absolute inset-0 resize-none overflow-auto whitespace-pre bg-transparent p-3 text-transparent outline-none"
+          style={{ ...codeStyle, caretColor: hl?.foreground ?? '#e5e7eb' }}
+        />
+      </div>,
+    )
+  }
+
+  // Editor (full code + viewable band) --------------------------------------
   if (editor) {
     const bandTop = (start - 1) * lineHeight
     const bandHeight = (end - start + 1) * lineHeight
-
-    // When selected, edit/paste code directly in the block.
-    if (interactive && onChange) {
-      return (
-        <textarea
-          spellCheck={false}
-          value={data.code}
-          onChange={(e) => onChange(e.target.value)}
-          className={cn('resize-none rounded-xl font-mono outline-none', className)}
-          style={{
-            background: hl?.background ?? 'var(--card)',
-            color: hl?.foreground ?? 'inherit',
-            fontSize,
-            lineHeight: `${lineHeight}px`,
-            height: '100%',
-            width: '100%',
-            padding: '12px 16px',
-            border: 'none',
-            whiteSpace: 'pre',
-          }}
-        />
-      )
-    }
-
-    return (
-      <div
-        ref={scrollRef}
-        className={cn('relative rounded-xl font-mono', className)}
-        style={{
-          background: hl?.background ?? 'var(--card)',
-          color: hl?.foreground,
-          fontSize,
-          lineHeight: `${lineHeight}px`,
-          height: '100%',
-          padding: '12px 16px',
-          overflowY: interactive ? 'auto' : 'hidden',
-          pointerEvents: interactive ? 'auto' : 'none',
-        }}
-      >
+    return chrome(
+      <div ref={scrollRef} className="h-full overflow-auto px-4 py-3" style={codeStyle}>
         <div className="relative">
           {data.visibleRange && (
             <div
-              className="pointer-events-none absolute right-0 left-0 rounded border-l-2 border-primary bg-primary/10"
+              className="pointer-events-none absolute right-0 left-0 rounded border-l-2 border-sky-500 bg-sky-500/10"
               style={{ top: bandTop, height: bandHeight }}
             />
           )}
           {lines.map(line)}
         </div>
-      </div>
+      </div>,
     )
   }
 
-  // --- Present: clipped reveal window with smooth scroll ---------------------
-  const windowHeight = (end - start + 1) * lineHeight
-  const hasWindow = Boolean(data.visibleRange)
-  return (
-    <div
-      className={cn('overflow-hidden rounded-xl font-mono', className)}
-      style={{
-        background: hl?.background ?? 'var(--card)',
-        color: hl?.foreground,
-        fontSize,
-        lineHeight: `${lineHeight}px`,
-        height: hasWindow ? windowHeight + 24 : '100%',
-        padding: '12px 16px',
-      }}
-    >
-      <div
-        style={{
-          transform: `translateY(${-(start - 1) * lineHeight}px)`,
-          willChange: 'transform',
-        }}
-      >
+  // Present (clipped reveal window) -----------------------------------------
+  return chrome(
+    <div className="h-full overflow-hidden px-4 py-3" style={codeStyle}>
+      <div style={{ transform: `translateY(${-(start - 1) * lineHeight}px)`, willChange: 'transform' }}>
         {lines.map(line)}
       </div>
-    </div>
+    </div>,
   )
 }

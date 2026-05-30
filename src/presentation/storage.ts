@@ -24,3 +24,28 @@ export function loadProject(id: string): Project | null {
     return null
   }
 }
+
+// --- Saved templates (history) ---------------------------------------------
+
+export type SavedTemplate = { id: string; name: string; project: Project }
+
+export function listSavedTemplates(): SavedTemplate[] {
+  if (typeof window === 'undefined') return []
+  try {
+    return JSON.parse(localStorage.getItem('deck.templates') ?? '[]') as SavedTemplate[]
+  } catch {
+    return []
+  }
+}
+
+export function saveTemplate(name: string, project: Project): SavedTemplate[] {
+  const list = listSavedTemplates()
+  list.unshift({ id: `tpl_${Date.now()}`, name, project })
+  const next = list.slice(0, 24)
+  try {
+    localStorage.setItem('deck.templates', JSON.stringify(next))
+  } catch {
+    /* ignore */
+  }
+  return next
+}

@@ -160,6 +160,11 @@ function cloneLayer(layer: Layer): Layer {
   return {
     ...structuredClone(layer),
     id: uid('layer'),
+    name: `${layer.name} copy`,
+    // Give the copy its own identity so morph matching (by morphKey or
+    // type+name) doesn't collide with the original on the same slide. Link
+    // them deliberately later via the inspector's Morph key field.
+    morphKey: layer.morphKey ? `${layer.morphKey}-copy` : undefined,
     children: layer.children?.map(cloneLayer),
   }
 }

@@ -12,6 +12,7 @@ import {
   EyeIcon,
   EyeOffIcon,
   LockIcon,
+  SparklesIcon,
   Trash2Icon,
   UnlockIcon,
 } from 'lucide-react'
@@ -59,7 +60,7 @@ export function LayersPanel({ store }: { store: EditorStore }) {
               <input
                 autoFocus
                 defaultValue={layer.name}
-                className="flex-1 rounded bg-background px-1 text-sm outline-none ring-1 ring-primary"
+                className="flex-1 rounded bg-background px-1 text-sm outline-none ring-1 ring-sky-500"
                 onClick={(e) => e.stopPropagation()}
                 onBlur={(e) => {
                   store.patchLayer(layer.id, { name: e.target.value || layer.name })
@@ -80,6 +81,12 @@ export function LayersPanel({ store }: { store: EditorStore }) {
               >
                 {layer.name}
               </span>
+            )}
+            {layer.animations.length > 0 && (
+              <SparklesIcon
+                className="size-3 shrink-0 text-sky-500"
+                aria-label="Has animation"
+              />
             )}
             <div className="hidden items-center gap-0.5 group-hover/layer:flex">
               <Mini onClick={() => store.reorderLayer(layer.id, last)} title="Bring to front">

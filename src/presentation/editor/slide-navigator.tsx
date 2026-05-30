@@ -3,7 +3,7 @@
 // Shared, non-interactive slide thumbnail. Renders a slide's layers scaled down
 // to a target pixel width. Used by the bottom slide strip and the dashboard.
 
-import { LayerView } from '../registry'
+import { extraTransform, LayerView } from '../registry'
 import type { Project, Slide } from '../types'
 
 export function SlideThumbnail({
@@ -46,7 +46,7 @@ export function SlideThumbnail({
                 width: layer.transform.width,
                 height: layer.transform.height,
                 opacity: layer.transform.opacity,
-                transform: `rotate(${layer.transform.rotation}deg) scale(${layer.transform.scale})`,
+                transform: `rotate(${layer.transform.rotation}deg) scale(${layer.transform.scale})${extraTransform(layer)}`,
               }}
             >
               <LayerView layer={layer} mode="present" />

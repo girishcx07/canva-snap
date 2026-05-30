@@ -62,7 +62,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               render={<a href="/" />}
             >
               <PresentationIcon className="size-5!" />
-              <span className="text-base font-semibold">Deck</span>
+              <span className="text-base font-semibold">Canva Snap</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

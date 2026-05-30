@@ -84,7 +84,7 @@ export function ResizablePanel({
           <div
             onPointerDown={startResize}
             className={cn(
-              'absolute top-0 bottom-0 z-20 w-1.5 cursor-col-resize hover:bg-primary/40',
+              'absolute top-0 bottom-0 z-20 w-1.5 cursor-col-resize hover:bg-sky-500/40',
               side === 'left' ? '-right-0.5' : '-left-0.5',
             )}
           />

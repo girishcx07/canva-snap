@@ -100,7 +100,7 @@ export function Sidebar({ store }: { store: EditorStore }) {
             }}
             className={cn(
               'mx-1.5 flex flex-col items-center gap-1 rounded-md py-2 text-[10px] font-medium text-muted-foreground hover:bg-muted',
-              active === item.id && !collapsed && 'bg-muted text-primary',
+              active === item.id && !collapsed && 'bg-muted text-sky-600',
             )}
           >
             <item.icon className="size-5" />
@@ -128,7 +128,7 @@ export function Sidebar({ store }: { store: EditorStore }) {
         </div>
         <div
           onPointerDown={startResize}
-          className="absolute top-0 -right-0.5 bottom-0 z-10 w-1.5 cursor-col-resize hover:bg-primary/40"
+          className="absolute top-0 -right-0.5 bottom-0 z-10 w-1.5 cursor-col-resize hover:bg-sky-500/40"
         />
       </div>
     </div>

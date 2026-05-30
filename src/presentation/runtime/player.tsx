@@ -12,7 +12,7 @@ import { buildMorphPlan, sampleMorph, type MorphItem } from '../engine/morph'
 import { scheduleSlide, sampleAt, timelineDuration } from '../engine/timeline'
 import type { SampledFrame } from '../engine/animation'
 import { fireTrigger, runActions, type ActionContext } from '../engine/events'
-import { LayerView } from '../registry'
+import { LayerView, extraTransform } from '../registry'
 import type { ID, Layer, Project, Transform } from '../types'
 
 const REST: SampledFrame = { x: 0, y: 0, rotation: 0, scale: 1, opacity: 1 }
@@ -130,11 +130,12 @@ export function Player({
     return () => window.removeEventListener('keydown', onKey)
   }, [go, onExit, slide, ctx])
 
-  const onLayerClick = (layer: Layer) => {
-    const clickBindings = layer.events.filter((b) => b.trigger === 'click')
-    if (clickBindings.length === 0) return
+  const onLayerClick = (layer: Layer) => onLayerTrigger(layer, 'click')
+  const onLayerTrigger = (layer: Layer, trigger: 'click' | 'hover') => {
+    const bindings = layer.events.filter((b) => b.trigger === trigger)
+    if (bindings.length === 0) return
     void runActions(
-      clickBindings.flatMap((b) => b.actions),
+      bindings.flatMap((b) => b.actions),
       ctx,
     )
   }
@@ -177,8 +178,10 @@ export function Player({
                 frame={REST}
               />
             ))
-          : slide.layers.map((layer) =>
-              overrides[layer.id] === false || layer.hidden ? null : (
+          : slide.layers.map((layer) => {
+              const visible = overrides[layer.id] ?? !layer.hidden
+              if (!visible) return null
+              return (
                 <RenderedLayer
                   key={layer.id}
                   layer={layer}
@@ -188,9 +191,10 @@ export function Player({
                     e.stopPropagation()
                     onLayerClick(layer)
                   }}
+                  onMouseEnter={() => onLayerTrigger(layer, 'hover')}
                 />
-              ),
-            )}
+              )
+            })}
 
         {/* cross-fade for non-morph transitions */}
         {morphing && slide.transition.type !== 'morph' && (
@@ -221,23 +225,26 @@ function RenderedLayer({
   frame,
   opacityOverride,
   onClick,
+  onMouseEnter,
 }: {
   layer: Layer
   transform: Transform
   frame: SampledFrame
   opacityOverride?: number
   onClick?: (e: React.MouseEvent) => void
+  onMouseEnter?: () => void
 }) {
   return (
     <div
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
       style={{
         position: 'absolute',
         left: transform.x,
         top: transform.y,
         width: transform.width,
         height: transform.height,
-        transform: `translate(${frame.x}px, ${frame.y}px) rotate(${transform.rotation + frame.rotation}deg) scale(${transform.scale * frame.scale})`,
+        transform: `translate(${frame.x}px, ${frame.y}px) rotate(${transform.rotation + frame.rotation}deg) scale(${transform.scale * frame.scale})${extraTransform(layer)}`,
         opacity: (opacityOverride ?? transform.opacity) * frame.opacity,
         pointerEvents: onClick ? 'auto' : 'none',
       }}

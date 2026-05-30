@@ -7,10 +7,19 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 
 import { findLayer } from '../doc'
+import { uid } from '../doc'
+import { TRIGGERS } from '../engine/events'
 import { getComponent } from '../registry'
 import type { EditorStore } from '../store'
 import { useEditorStore } from '../store'
 import type { Layer, SlideTransitionType } from '../types'
+
+const FONTS = [
+  { label: 'Sans', value: 'var(--font-sans)' },
+  { label: 'Serif', value: 'Georgia, serif' },
+  { label: 'Mono', value: 'ui-monospace, monospace' },
+  { label: 'System', value: 'system-ui, sans-serif' },
+]
 
 const GRADIENTS = [
   'linear-gradient(135deg, #7c3aed, #06b6d4)',
@@ -108,6 +117,28 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
           {'fontSize' in layer.style && (
             <Num label="Font size" value={layer.style.fontSize ?? 16} onChange={(v) => setStyle('fontSize', v)} />
           )}
+          {'fontSize' in layer.style && (
+            <Field label="Font">
+              <NativeSelect
+                value={String(layer.style.fontFamily ?? 'var(--font-sans)')}
+                options={FONTS}
+                onChange={(v) => setStyle('fontFamily', v)}
+              />
+            </Field>
+          )}
+          {'fontSize' in layer.style && (
+            <Field label="Align">
+              <NativeSelect
+                value={layer.style.textAlign ?? 'left'}
+                options={[
+                  { label: 'Left', value: 'left' },
+                  { label: 'Center', value: 'center' },
+                  { label: 'Right', value: 'right' },
+                ]}
+                onChange={(v) => setStyle('textAlign', v)}
+              />
+            </Field>
+          )}
           {'borderRadius' in layer.style && (
             <Num label="Radius" value={layer.style.borderRadius ?? 0} onChange={(v) => setStyle('borderRadius', v)} />
           )}
@@ -122,7 +153,206 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
           onChange={(e) => store.patchLayer(layer.id, { morphKey: e.target.value || undefined })}
         />
       </Section>
+
+      {layer.type === 'code' && (
+        <Section title="Code presentation">
+          <Field label="Reveal on enter">
+            <NativeSelect
+              value={String(layer.data.reveal ?? 'none')}
+              options={[
+                { label: 'None', value: 'none' },
+                { label: 'Typing', value: 'typing' },
+                { label: 'Line by line', value: 'lines' },
+              ]}
+              onChange={(v) => setData('reveal', v)}
+            />
+          </Field>
+          <Row>
+            <Num
+              label="Visible from"
+              value={range(layer)[0]}
+              onChange={(v) => setData('visibleRange', [Math.max(1, v), range(layer)[1]])}
+            />
+            <Num
+              label="Visible to"
+              value={range(layer)[1]}
+              onChange={(v) => setData('visibleRange', [range(layer)[0], v])}
+            />
+          </Row>
+          <Field label="Focus lines (e.g. 3,4,5)">
+            <Input
+              className="h-7"
+              value={lineList(layer.data.focusLines)}
+              onChange={(e) => setData('focusLines', parseLineList(e.target.value))}
+            />
+          </Field>
+          <Field label="Added lines (diff)">
+            <Input
+              className="h-7"
+              value={lineList(layer.data.diff && (layer.data.diff as { added?: number[] }).added)}
+              onChange={(e) =>
+                setData('diff', { ...(layer.data.diff as object), added: parseLineList(e.target.value) })
+              }
+            />
+          </Field>
+          <p className="text-[10px] text-muted-foreground">
+            Tip: give two code layers on consecutive slides the same morph key to
+            scroll/diff between them. Use file tabs by setting data.files.
+          </p>
+        </Section>
+      )}
+
+      <Section title="Transform">
+        <Row>
+          <button
+            onClick={() => setData('flipH', !layer.data.flipH)}
+            className={tglClass(!!layer.data.flipH)}
+          >
+            Flip H
+          </button>
+          <button
+            onClick={() => setData('flipV', !layer.data.flipV)}
+            className={tglClass(!!layer.data.flipV)}
+          >
+            Flip V
+          </button>
+        </Row>
+        <Row>
+          <Num label="Skew X" value={Number(layer.data.skewX ?? 0)} onChange={(v) => setData('skewX', v)} />
+          <Num label="Skew Y" value={Number(layer.data.skewY ?? 0)} onChange={(v) => setData('skewY', v)} />
+        </Row>
+        <Field label="Custom CSS transform">
+          <textarea
+            className="min-h-16 w-full resize-y rounded-md border bg-transparent p-2 font-mono text-xs"
+            placeholder="e.g. perspective(500px) rotateY(20deg) skewX(8deg)"
+            value={String(layer.data.transform ?? '')}
+            onChange={(e) => setData('transform', e.target.value)}
+          />
+        </Field>
+      </Section>
+
+      <EventsSection store={store} layer={layer} />
     </>
+  )
+}
+
+type EventActionKind = 'show-layer' | 'hide-layer' | 'next' | 'prev'
+
+function EventsSection({ store, layer }: { store: EditorStore; layer: Layer }) {
+  const project = useEditorStore(store, (s) => s.project)
+  const currentSlideId = useEditorStore(store, (s) => s.currentSlideId)
+  const slide =
+    project.slides.find((s) => s.id === currentSlideId) ?? project.slides[0]
+  const others = slide.layers.filter((l) => l.id !== layer.id)
+
+  const setEvents = (events: Layer['events']) => store.patchLayer(layer.id, { events })
+
+  const add = () =>
+    setEvents([
+      ...layer.events,
+      {
+        id: uid('evt'),
+        trigger: 'click',
+        actions: [{ type: 'navigate-slide', params: { target: 'next' } }],
+      },
+    ])
+
+  const kindOf = (b: Layer['events'][number]): EventActionKind => {
+    const a = b.actions[0]
+    if (a?.type === 'navigate-slide') return a.params.target === 'prev' ? 'prev' : 'next'
+    return (a?.type as EventActionKind) ?? 'next'
+  }
+
+  const setKind = (id: string, kind: EventActionKind) =>
+    setEvents(
+      layer.events.map((b) =>
+        b.id !== id
+          ? b
+          : {
+              ...b,
+              actions: [
+                kind === 'next' || kind === 'prev'
+                  ? { type: 'navigate-slide', params: { target: kind } }
+                  : { type: kind, params: { layerId: b.actions[0]?.params.layerId ?? others[0]?.id } },
+              ],
+            },
+      ),
+    )
+
+  const setTarget = (id: string, layerId: string) =>
+    setEvents(
+      layer.events.map((b) =>
+        b.id !== id ? b : { ...b, actions: [{ ...b.actions[0], params: { ...b.actions[0].params, layerId } }] },
+      ),
+    )
+
+  return (
+    <Section title="Events">
+      {layer.events.map((b) => {
+        const kind = kindOf(b)
+        return (
+          <div key={b.id} className="flex flex-col gap-1 rounded-md border p-1.5">
+            <div className="flex items-center gap-1">
+              <NativeSelect
+                value={b.trigger}
+                options={TRIGGERS.map((t) => ({ label: t.label, value: t.type }))}
+                onChange={(v) => setEvents(layer.events.map((x) => (x.id === b.id ? { ...x, trigger: v as Layer['events'][number]['trigger'] } : x)))}
+              />
+              <button
+                onClick={() => setEvents(layer.events.filter((x) => x.id !== b.id))}
+                className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:text-foreground"
+                title="Remove"
+              >
+                ×
+              </button>
+            </div>
+            <NativeSelect
+              value={kind}
+              options={[
+                { label: 'Show layer', value: 'show-layer' },
+                { label: 'Hide layer', value: 'hide-layer' },
+                { label: 'Next slide', value: 'next' },
+                { label: 'Previous slide', value: 'prev' },
+              ]}
+              onChange={(v) => setKind(b.id, v as EventActionKind)}
+            />
+            {(kind === 'show-layer' || kind === 'hide-layer') && (
+              <NativeSelect
+                value={String(b.actions[0]?.params.layerId ?? '')}
+                options={others.map((l) => ({ label: l.name, value: l.id }))}
+                onChange={(v) => setTarget(b.id, v)}
+              />
+            )}
+          </div>
+        )
+      })}
+      <button onClick={add} className="rounded-md border border-dashed px-2 py-1.5 text-xs hover:bg-muted">
+        + Add event
+      </button>
+    </Section>
+  )
+}
+
+function range(layer: Layer): [number, number] {
+  const r = layer.data.visibleRange as [number, number] | undefined
+  return r ?? [1, 1]
+}
+
+function lineList(v: unknown): string {
+  return Array.isArray(v) ? (v as number[]).join(',') : ''
+}
+
+function parseLineList(s: string): number[] {
+  return s
+    .split(',')
+    .map((p) => parseInt(p.trim(), 10))
+    .filter((n) => Number.isFinite(n))
+}
+
+function tglClass(active: boolean): string {
+  return (
+    'rounded-md border px-2 py-1 text-xs hover:bg-muted ' +
+    (active ? 'border-sky-500 bg-sky-500/10 text-sky-600' : '')
   )
 }
 
@@ -178,7 +408,7 @@ function SlideInspector({ store }: { store: EditorStore }) {
             })
           }
         />
-        <Field label="Notes">
+        <Field label="Speaker notes">
           <textarea
             className="min-h-16 w-full resize-y rounded-md border bg-transparent p-2 text-xs"
             value={slide.notes}

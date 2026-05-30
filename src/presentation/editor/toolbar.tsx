@@ -3,17 +3,12 @@
 // Top toolbar: project name, history, add slide, present, and export.
 
 import { useState } from 'react'
-import {
-  DownloadIcon,
-  PlayIcon,
-  PlusIcon,
-  Redo2Icon,
-  Undo2Icon,
-} from 'lucide-react'
+import { DownloadIcon, PlayIcon, Redo2Icon, Undo2Icon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 
+import { BrandLogo } from './brand'
 import {
   getExporter,
   listExporters,
@@ -49,29 +44,23 @@ export function Toolbar({ store }: { store: EditorStore }) {
   }
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3">
-      <a href="/" className="text-sm font-semibold">
-        Deck
-      </a>
-      <Separator orientation="vertical" className="mx-1 h-5" />
-      <input
-        className="w-48 rounded-md bg-transparent px-2 py-1 text-sm font-medium outline-none hover:bg-muted focus:bg-muted"
-        value={project.name}
-        onChange={(e) => store.patchProject({ name: e.target.value })}
-      />
-
+    <header className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3">
       <div className="flex items-center gap-1">
+        <BrandLogo />
+        <Separator orientation="vertical" className="mx-1 h-5" />
         <Button size="icon-sm" variant="ghost" onClick={store.undo} disabled={!store.canUndo()}>
           <Undo2Icon />
         </Button>
         <Button size="icon-sm" variant="ghost" onClick={store.redo} disabled={!store.canRedo()}>
           <Redo2Icon />
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => store.addSlide()}>
-          <PlusIcon data-icon="inline-start" />
-          Slide
-        </Button>
       </div>
+
+      <input
+        className="absolute left-1/2 w-64 -translate-x-1/2 rounded-md bg-transparent px-2 py-1 text-center text-sm font-medium outline-none hover:bg-muted focus:bg-muted"
+        value={project.name}
+        onChange={(e) => store.patchProject({ name: e.target.value })}
+      />
 
       <div className="ml-auto flex items-center gap-2">
         {status && <span className="text-xs text-muted-foreground">{status}</span>}

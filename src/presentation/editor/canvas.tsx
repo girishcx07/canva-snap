@@ -8,17 +8,29 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  ChevronDownIcon,
+  ChevronsDownIcon,
+  ChevronsUpIcon,
+  ChevronUpIcon,
+  CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
   GridIcon,
+  LockIcon,
+  type LucideIcon,
   MaximizeIcon,
   MoveHorizontalIcon,
   RulerIcon,
+  Trash2Icon,
+  UnlockIcon,
   ZoomInIcon,
   ZoomOutIcon,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-import { createCenteredLayer, getComponent, LayerView } from '../registry'
+import { frameToCss, getPreset, sampleKeyframes } from '../engine/animation'
+import { createCenteredLayer, extraTransform, getComponent, LayerView } from '../registry'
 import type { EditorStore } from '../store'
 import { useEditorStore } from '../store'
 import type { Layer, Slide, Transform } from '../types'
@@ -31,6 +43,8 @@ const GRID = 20
 const SNAP_PX = 6
 const RULER = 22
 const SAFE = 0.05
+// Neutral editor accent (not the brand primary) for selection/handles/guides.
+const ACCENT = '#3b82f6'
 
 export function Canvas({ store }: { store: EditorStore }) {
   const project = useEditorStore(store, (s) => s.project)
@@ -119,19 +133,54 @@ export function Canvas({ store }: { store: EditorStore }) {
     return () => el.removeEventListener('wheel', handler)
   }, [])
 
-  // Drop an element dragged from the sidebar onto the canvas at the cursor.
+  // Preview an animation on the canvas when a preset is hovered in the panel.
+  const preview = useEditorStore(store, (s) => s.preview)
+  useEffect(() => {
+    if (!preview) return
+    const node = wrapRef.current?.querySelector(
+      `[data-layer-id="${preview.layerId}"]`,
+    ) as HTMLElement | null
+    const p = getPreset(preview.presetId)
+    if (!node || !p) return
+    const frames = [0, 0.25, 0.5, 0.75, 1].map((o) => {
+      const c = frameToCss(sampleKeyframes(p.keyframes, o))
+      return { offset: o, transform: c.transform, opacity: c.opacity }
+    })
+    const anim = node.animate(frames, { duration: p.defaultDurationMs, easing: 'ease' })
+    return () => anim.cancel()
+  }, [preview])
+
+  // Drop an element dragged from a sidebar panel onto the canvas at the cursor.
+  // Payload is JSON: { type, data?, iconify? } (or a plain type string).
   function onDrop(e: React.DragEvent) {
-    const type = e.dataTransfer.getData('application/x-deck-element')
-    if (!type) return
+    const raw = e.dataTransfer.getData('application/x-deck-element')
+    if (!raw) return
     e.preventDefault()
+    let type = raw
+    let data: Record<string, unknown> | undefined
+    let iconify: string | undefined
+    try {
+      const parsed = JSON.parse(raw)
+      type = parsed.type
+      data = parsed.data
+      iconify = parsed.iconify
+    } catch {
+      /* plain type string */
+    }
     const rect = wrapRef.current!.getBoundingClientRect()
     const wx = (e.clientX - rect.left - view.panX) / view.zoom
     const wy = (e.clientY - rect.top - view.panY) / view.zoom
-    const l = createCenteredLayer(type, project)
+    const l = createCenteredLayer(type, project, data ? { data } : undefined)
     if (!l) return
     l.transform.x = Math.round(wx - l.transform.width / 2)
     l.transform.y = Math.round(wy - l.transform.height / 2)
     store.addLayer(l)
+    if (iconify) {
+      fetch(`https://api.iconify.design/${iconify.replace(':', '/')}.svg`)
+        .then((r) => r.text())
+        .then((markup) => store.patchLayer(l.id, { data: { ...l.data, markup } }))
+        .catch(() => {})
+    }
   }
 
   // Drag empty space = pan; click without drag = deselect.
@@ -139,6 +188,7 @@ export function Canvas({ store }: { store: EditorStore }) {
     const startX = e.clientX
     const startY = e.clientY
     let moved = false
+    document.body.style.userSelect = 'none'
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startX
       const dy = ev.clientY - startY
@@ -147,6 +197,7 @@ export function Canvas({ store }: { store: EditorStore }) {
     }
     const onUp = () => {
       if (!moved) store.clearSelection()
+      document.body.style.userSelect = ''
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
@@ -159,6 +210,7 @@ export function Canvas({ store }: { store: EditorStore }) {
     e.stopPropagation()
     store.select(e.shiftKey ? [...new Set([...selected, layer.id])] : [layer.id])
     store.beginTransaction()
+    document.body.style.userSelect = 'none'
     const startX = e.clientX
     const startY = e.clientY
     const base = layer.transform
@@ -187,6 +239,7 @@ export function Canvas({ store }: { store: EditorStore }) {
     const onUp = () => {
       store.commitTransaction()
       setGuides({ vx: [], hy: [] })
+      document.body.style.userSelect = ''
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
@@ -200,7 +253,7 @@ export function Canvas({ store }: { store: EditorStore }) {
   return (
     <div
       ref={wrapRef}
-      className="relative flex-1 touch-none overflow-hidden bg-muted/60"
+      className="relative flex-1 touch-none overflow-hidden bg-[#e7e7ec] dark:bg-[#2b2b30]"
       onPointerDown={onBackgroundPointerDown}
       onDragOver={(e) => e.preventDefault()}
       onDrop={onDrop}
@@ -243,10 +296,10 @@ export function Canvas({ store }: { store: EditorStore }) {
             ),
           )}
 
-          {/* Dim everything outside the sheet (highlights the in-canvas area). */}
+          {/* Mask only the out-of-bounds area (the sheet stays crisp). */}
           <div
             className="pointer-events-none absolute inset-0"
-            style={{ boxShadow: '0 0 0 100000px rgba(9, 9, 14, 0.55)' }}
+            style={{ boxShadow: '0 0 0 100000px rgba(120, 120, 130, 0.45)' }}
           />
 
           {opts.safe && (
@@ -343,14 +396,15 @@ function LayerBox({
   return (
     <div
       className="absolute"
+      data-layer-id={layer.id}
       style={{
         left: t.x,
         top: t.y,
         width: t.width,
         height: t.height,
         opacity: t.opacity,
-        transform: `rotate(${t.rotation}deg) scale(${t.scale})`,
-        outline: selected ? `${2 / zoom}px solid var(--primary)` : undefined,
+        transform: `rotate(${t.rotation}deg) scale(${t.scale})${extraTransform(layer)}`,
+        outline: selected ? `${2 / zoom}px solid ${ACCENT}` : undefined,
         cursor: layer.locked ? 'default' : 'move',
       }}
       onPointerDown={interactive ? undefined : (e) => onStart(e, layer, 'move')}
@@ -365,25 +419,35 @@ function LayerBox({
 
       {selected && !layer.locked && (
         <>
-          {/* Move grip (keeps interactive layers movable) */}
+          {/* Move grip (keeps interactive layers movable; easy to grab) */}
           <div
             onPointerDown={(e) => onStart(e, layer, 'move')}
-            className="absolute left-1/2 z-10 rounded-full bg-primary"
-            style={{ top: -16 / zoom, width: 26 / zoom, height: 7 / zoom, transform: 'translateX(-50%)', cursor: 'move' }}
-            title="Move"
-          />
+            className="absolute left-1/2 z-10 flex items-center justify-center gap-1 rounded-md font-medium text-white shadow"
+            style={{
+              top: -24 / zoom,
+              height: 18 / zoom,
+              width: 80 / zoom,
+              fontSize: 10 / zoom,
+              background: ACCENT,
+              transform: 'translateX(-50%)',
+              cursor: 'move',
+            }}
+            title="Drag to move"
+          >
+            ⠿ move
+          </div>
           {(['nw', 'ne', 'sw', 'se'] as const).map((h) => (
             <div
               key={h}
               onPointerDown={(e) => onStart(e, layer, h)}
-              className="absolute z-10 rounded-full border border-primary bg-background"
-              style={{ width: hs, height: hs, ...handlePos(h) }}
+              className="absolute z-10 rounded-full bg-background"
+              style={{ width: hs, height: hs, border: `${1.5 / zoom}px solid ${ACCENT}`, ...handlePos(h) }}
             />
           ))}
           <div
             onPointerDown={(e) => onStart(e, layer, 'rotate')}
-            className="absolute z-10 rounded-full border border-primary bg-background"
-            style={{ width: hs, height: hs, left: '50%', top: -32 / zoom, transform: 'translateX(-50%)', cursor: 'grab' }}
+            className="absolute z-10 rounded-full bg-background"
+            style={{ width: hs, height: hs, left: '50%', top: -32 / zoom, transform: 'translateX(-50%)', cursor: 'grab', border: `${1.5 / zoom}px solid ${ACCENT}` }}
           />
         </>
       )}
@@ -508,7 +572,7 @@ function Ctrl({
       onClick={onClick}
       className={cn(
         'grid size-7 place-items-center rounded-md hover:bg-muted [&_svg]:size-4',
-        active && 'bg-muted text-primary',
+        active && 'bg-muted text-sky-500',
       )}
     >
       {children}
@@ -616,21 +680,21 @@ function ContextMenu({
 }) {
   if (!layer) return null
   const index = slide.layers.findIndex((l) => l.id === layer.id)
-  const items: { label: string; run: () => void }[] = [
-    { label: 'Duplicate', run: () => store.duplicateLayer(layer.id) },
-    { label: 'Bring to front', run: () => store.reorderLayer(layer.id, slide.layers.length - 1) },
-    { label: 'Send to back', run: () => store.reorderLayer(layer.id, 0) },
-    { label: 'Forward', run: () => store.reorderLayer(layer.id, index + 1) },
-    { label: 'Backward', run: () => store.reorderLayer(layer.id, index - 1) },
-    { label: layer.locked ? 'Unlock' : 'Lock', run: () => store.patchLayer(layer.id, { locked: !layer.locked }) },
-    { label: layer.hidden ? 'Show' : 'Hide', run: () => store.patchLayer(layer.id, { hidden: !layer.hidden }) },
-    { label: 'Delete', run: () => store.deleteLayer(layer.id) },
+  const items: { label: string; icon: LucideIcon; run: () => void }[] = [
+    { label: 'Duplicate', icon: CopyIcon, run: () => store.duplicateLayer(layer.id) },
+    { label: 'Bring to front', icon: ChevronsUpIcon, run: () => store.reorderLayer(layer.id, slide.layers.length - 1) },
+    { label: 'Send to back', icon: ChevronsDownIcon, run: () => store.reorderLayer(layer.id, 0) },
+    { label: 'Forward', icon: ChevronUpIcon, run: () => store.reorderLayer(layer.id, index + 1) },
+    { label: 'Backward', icon: ChevronDownIcon, run: () => store.reorderLayer(layer.id, index - 1) },
+    { label: layer.locked ? 'Unlock' : 'Lock', icon: layer.locked ? UnlockIcon : LockIcon, run: () => store.patchLayer(layer.id, { locked: !layer.locked }) },
+    { label: layer.hidden ? 'Show' : 'Hide', icon: layer.hidden ? EyeIcon : EyeOffIcon, run: () => store.patchLayer(layer.id, { hidden: !layer.hidden }) },
+    { label: 'Delete', icon: Trash2Icon, run: () => store.deleteLayer(layer.id) },
   ]
   return (
     <>
       <div className="fixed inset-0 z-40" onPointerDown={close} onContextMenu={(e) => { e.preventDefault(); close() }} />
       <div
-        className="fixed z-50 w-44 rounded-lg border bg-popover p-1 text-sm shadow-md"
+        className="fixed z-50 w-48 rounded-lg border bg-popover p-1 text-sm shadow-md"
         style={{ left: x, top: y }}
       >
         {items.map((it) => (
@@ -640,8 +704,9 @@ function ContextMenu({
               it.run()
               close()
             }}
-            className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-muted"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted [&_svg]:size-4 [&_svg]:text-muted-foreground"
           >
+            <it.icon />
             {it.label}
           </button>
         ))}

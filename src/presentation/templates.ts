@@ -84,10 +84,10 @@ export type Template = {
   build: () => Project
 }
 
-// The Flexbox sample is the default template.
+// Blank is the default; the Flexbox sample is the showcase template.
 export const TEMPLATES: Template[] = [
-  { id: 'flexbox', label: 'CSS Flexbox (sample)', build: createSampleProject },
   { id: 'blank', label: 'Blank', build: createBlankProject },
+  { id: 'flexbox', label: 'CSS Flexbox', build: createSampleProject },
   { id: 'title', label: 'Title slide', build: titleDeck },
   { id: 'code', label: 'Code walkthrough', build: codeDeck },
 ]

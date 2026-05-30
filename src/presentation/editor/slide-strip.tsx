@@ -37,8 +37,8 @@ export function SlideStrip({ store }: { store: EditorStore }) {
             className={cn(
               'overflow-hidden rounded-md border transition-colors',
               slide.id === currentSlideId
-                ? 'border-primary ring-2 ring-primary'
-                : 'border-border hover:border-primary/50',
+                ? 'border-sky-500 ring-2 ring-sky-500'
+                : 'border-border hover:border-sky-500/50',
             )}
           >
             <SlideThumbnail project={project} slide={slide} width={150} />

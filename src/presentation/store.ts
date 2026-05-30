@@ -13,6 +13,8 @@ export type EditorState = {
   project: Project
   currentSlideId: ID
   selectedLayerIds: ID[]
+  // Transient signal: hover an animation preset to preview it on the canvas.
+  preview?: { layerId: ID; presetId: string; n: number }
 }
 
 type Listener = () => void
@@ -82,6 +84,10 @@ export class EditorStore {
   }
 
   clearSelection = () => this.select([])
+
+  // Fire a one-shot animation preview on the canvas (no history).
+  previewAnimation = (layerId: ID, presetId: string) =>
+    this.setUi({ preview: { layerId, presetId, n: (this.state.preview?.n ?? 0) + 1 } })
 
   // --- History ---
   canUndo = () => this.past.length > 0
