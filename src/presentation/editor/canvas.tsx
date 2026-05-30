@@ -422,13 +422,12 @@ function LayerBox({
           {/* Move grip (keeps interactive layers movable; easy to grab) */}
           <div
             onPointerDown={(e) => onStart(e, layer, 'move')}
-            className="absolute left-1/2 z-10 flex items-center justify-center gap-1 rounded-md font-medium text-white shadow"
+            className="absolute left-1/2 z-10 flex items-center justify-center gap-1 rounded-md border border-black/10 bg-neutral-200 font-medium text-neutral-700 shadow-sm"
             style={{
               top: -24 / zoom,
               height: 18 / zoom,
               width: 80 / zoom,
               fontSize: 10 / zoom,
-              background: ACCENT,
               transform: 'translateX(-50%)',
               cursor: 'move',
             }}

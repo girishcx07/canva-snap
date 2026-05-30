@@ -21,7 +21,8 @@ import {
 } from "../engine/animation";
 import { createCenteredLayer } from "../registry";
 import { useEditorStore, type EditorStore } from "../store";
-import { findLayer } from "../doc";
+import { findLayer, uid } from "../doc";
+import { TRIGGERS } from "../engine/events";
 import { TEMPLATES } from "../templates";
 import {
   listSavedTemplates,
@@ -157,7 +158,7 @@ export function CodePanel({ store }: PanelProps) {
           key={it.type}
           {...dragProps({ type: it.type })}
           onClick={() => insert(store, it.type)}
-          className="flex cursor-grab flex-col gap-1 rounded-lg border p-1.5 text-left hover:border-sky-500 active:cursor-grabbing"
+          className="flex cursor-grab flex-col gap-1 rounded-lg border p-1.5 text-left hover:border-primary active:cursor-grabbing"
         >
           <div className="h-12 overflow-hidden rounded border bg-muted/30">{it.preview}</div>
           <span className="px-0.5 text-xs font-medium">{it.label}</span>
@@ -257,7 +258,7 @@ export function AnimationsPanel({ store }: PanelProps) {
                 onClick={() => clear(category)}
                 className={
                   "rounded-lg border px-2 py-3 text-xs hover:bg-muted " +
-                  (!current ? "border-sky-500 bg-sky-500/10 text-sky-600" : "")
+                  (!current ? "border-primary bg-primary/10 text-primary" : "")
                 }
               >
                 None
@@ -314,11 +315,11 @@ function PresetCard({
       onMouseEnter={preview}
       className={
         "flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-xs hover:bg-muted " +
-        (active ? "border-sky-500 bg-sky-500/10 text-sky-600" : "")
+        (active ? "border-primary bg-primary/10 text-primary" : "")
       }
     >
       <span className="grid h-6 w-full place-items-center overflow-hidden">
-        <span ref={dot} className="size-3 rounded-sm bg-sky-500" />
+        <span ref={dot} className="size-3 rounded-sm bg-primary" />
       </span>
       {label}
     </button>
@@ -343,7 +344,7 @@ export function TemplatesPanel({ store }: PanelProps) {
           <button
             key={t.id}
             onClick={() => store.replaceProject(t.build())}
-            className="flex flex-col gap-1 rounded-lg border p-1.5 text-left hover:border-sky-500"
+            className="flex flex-col gap-1 rounded-lg border p-1.5 text-left hover:border-primary"
           >
             <div className="overflow-hidden rounded border bg-muted/30">
               <SlideThumbnail
@@ -385,7 +386,7 @@ export function TemplatesPanel({ store }: PanelProps) {
             <button
               key={s.id}
               onClick={() => store.replaceProject(structuredClone(s.project))}
-              className="flex flex-col gap-1 rounded-lg border p-1.5 text-left hover:border-sky-500"
+              className="flex flex-col gap-1 rounded-lg border p-1.5 text-left hover:border-primary"
             >
               <div className="overflow-hidden rounded border bg-muted/30">
                 <SlideThumbnail

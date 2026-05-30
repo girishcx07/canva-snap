@@ -7,8 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 
 import { findLayer } from '../doc'
-import { uid } from '../doc'
-import { TRIGGERS } from '../engine/events'
 import { getComponent } from '../registry'
 import type { EditorStore } from '../store'
 import { useEditorStore } from '../store'
@@ -179,25 +177,44 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
               onChange={(v) => setData('visibleRange', [range(layer)[0], v])}
             />
           </Row>
-          <Field label="Focus lines (e.g. 3,4,5)">
+          <Field label="Focus lines — dim others (e.g. 3,4,5)">
             <Input
               className="h-7"
               value={lineList(layer.data.focusLines)}
               onChange={(e) => setData('focusLines', parseLineList(e.target.value))}
             />
           </Field>
-          <Field label="Added lines (diff)">
+          <Field label="Highlight lines — keep others (e.g. 2,7)">
             <Input
               className="h-7"
-              value={lineList(layer.data.diff && (layer.data.diff as { added?: number[] }).added)}
-              onChange={(e) =>
-                setData('diff', { ...(layer.data.diff as object), added: parseLineList(e.target.value) })
-              }
+              value={lineList(layer.data.highlightLines)}
+              onChange={(e) => setData('highlightLines', parseLineList(e.target.value))}
             />
           </Field>
+          <Row>
+            <Field label="Added lines">
+              <Input
+                className="h-7"
+                value={lineList(layer.data.diff && (layer.data.diff as { added?: number[] }).added)}
+                onChange={(e) =>
+                  setData('diff', { ...(layer.data.diff as object), added: parseLineList(e.target.value) })
+                }
+              />
+            </Field>
+            <Field label="Removed lines">
+              <Input
+                className="h-7"
+                value={lineList(layer.data.diff && (layer.data.diff as { removed?: number[] }).removed)}
+                onChange={(e) =>
+                  setData('diff', { ...(layer.data.diff as object), removed: parseLineList(e.target.value) })
+                }
+              />
+            </Field>
+          </Row>
           <p className="text-[10px] text-muted-foreground">
-            Tip: give two code layers on consecutive slides the same morph key to
-            scroll/diff between them. Use file tabs by setting data.files.
+            Focus dims other lines; Highlight only tints the chosen lines. Give
+            two code layers on consecutive slides the same morph key to scroll /
+            diff between them.
           </p>
         </Section>
       )}
@@ -230,106 +247,7 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
           />
         </Field>
       </Section>
-
-      <EventsSection store={store} layer={layer} />
     </>
-  )
-}
-
-type EventActionKind = 'show-layer' | 'hide-layer' | 'next' | 'prev'
-
-function EventsSection({ store, layer }: { store: EditorStore; layer: Layer }) {
-  const project = useEditorStore(store, (s) => s.project)
-  const currentSlideId = useEditorStore(store, (s) => s.currentSlideId)
-  const slide =
-    project.slides.find((s) => s.id === currentSlideId) ?? project.slides[0]
-  const others = slide.layers.filter((l) => l.id !== layer.id)
-
-  const setEvents = (events: Layer['events']) => store.patchLayer(layer.id, { events })
-
-  const add = () =>
-    setEvents([
-      ...layer.events,
-      {
-        id: uid('evt'),
-        trigger: 'click',
-        actions: [{ type: 'navigate-slide', params: { target: 'next' } }],
-      },
-    ])
-
-  const kindOf = (b: Layer['events'][number]): EventActionKind => {
-    const a = b.actions[0]
-    if (a?.type === 'navigate-slide') return a.params.target === 'prev' ? 'prev' : 'next'
-    return (a?.type as EventActionKind) ?? 'next'
-  }
-
-  const setKind = (id: string, kind: EventActionKind) =>
-    setEvents(
-      layer.events.map((b) =>
-        b.id !== id
-          ? b
-          : {
-              ...b,
-              actions: [
-                kind === 'next' || kind === 'prev'
-                  ? { type: 'navigate-slide', params: { target: kind } }
-                  : { type: kind, params: { layerId: b.actions[0]?.params.layerId ?? others[0]?.id } },
-              ],
-            },
-      ),
-    )
-
-  const setTarget = (id: string, layerId: string) =>
-    setEvents(
-      layer.events.map((b) =>
-        b.id !== id ? b : { ...b, actions: [{ ...b.actions[0], params: { ...b.actions[0].params, layerId } }] },
-      ),
-    )
-
-  return (
-    <Section title="Events">
-      {layer.events.map((b) => {
-        const kind = kindOf(b)
-        return (
-          <div key={b.id} className="flex flex-col gap-1 rounded-md border p-1.5">
-            <div className="flex items-center gap-1">
-              <NativeSelect
-                value={b.trigger}
-                options={TRIGGERS.map((t) => ({ label: t.label, value: t.type }))}
-                onChange={(v) => setEvents(layer.events.map((x) => (x.id === b.id ? { ...x, trigger: v as Layer['events'][number]['trigger'] } : x)))}
-              />
-              <button
-                onClick={() => setEvents(layer.events.filter((x) => x.id !== b.id))}
-                className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:text-foreground"
-                title="Remove"
-              >
-                ×
-              </button>
-            </div>
-            <NativeSelect
-              value={kind}
-              options={[
-                { label: 'Show layer', value: 'show-layer' },
-                { label: 'Hide layer', value: 'hide-layer' },
-                { label: 'Next slide', value: 'next' },
-                { label: 'Previous slide', value: 'prev' },
-              ]}
-              onChange={(v) => setKind(b.id, v as EventActionKind)}
-            />
-            {(kind === 'show-layer' || kind === 'hide-layer') && (
-              <NativeSelect
-                value={String(b.actions[0]?.params.layerId ?? '')}
-                options={others.map((l) => ({ label: l.name, value: l.id }))}
-                onChange={(v) => setTarget(b.id, v)}
-              />
-            )}
-          </div>
-        )
-      })}
-      <button onClick={add} className="rounded-md border border-dashed px-2 py-1.5 text-xs hover:bg-muted">
-        + Add event
-      </button>
-    </Section>
   )
 }
 
@@ -352,7 +270,7 @@ function parseLineList(s: string): number[] {
 function tglClass(active: boolean): string {
   return (
     'rounded-md border px-2 py-1 text-xs hover:bg-muted ' +
-    (active ? 'border-sky-500 bg-sky-500/10 text-sky-600' : '')
+    (active ? 'border-primary bg-primary/10 text-primary' : '')
   )
 }
 

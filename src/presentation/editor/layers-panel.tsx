@@ -60,7 +60,7 @@ export function LayersPanel({ store }: { store: EditorStore }) {
               <input
                 autoFocus
                 defaultValue={layer.name}
-                className="flex-1 rounded bg-background px-1 text-sm outline-none ring-1 ring-sky-500"
+                className="flex-1 rounded bg-background px-1 text-sm outline-none ring-1 ring-primary"
                 onClick={(e) => e.stopPropagation()}
                 onBlur={(e) => {
                   store.patchLayer(layer.id, { name: e.target.value || layer.name })
@@ -84,7 +84,7 @@ export function LayersPanel({ store }: { store: EditorStore }) {
             )}
             {layer.animations.length > 0 && (
               <SparklesIcon
-                className="size-3 shrink-0 text-sky-500"
+                className="size-3 shrink-0 text-primary"
                 aria-label="Has animation"
               />
             )}

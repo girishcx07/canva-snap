@@ -70,12 +70,22 @@ export function ResizablePanel({
       <button
         onClick={() => setCollapsed((c) => !c)}
         className={cn(
-          'absolute top-2 z-10 grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted [&_svg]:size-4',
-          side === 'left' ? 'right-1.5' : 'left-1.5',
+          'absolute top-2 z-30 grid size-7 place-items-center rounded-md border bg-background text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground [&_svg]:size-4',
+          collapsed
+            ? 'left-1/2 -translate-x-1/2'
+            : side === 'left'
+              ? 'right-2'
+              : 'left-2',
         )}
         title={collapsed ? 'Expand panel' : 'Collapse panel'}
       >
-        {collapsed ? <PanelLeftOpenIcon /> : <PanelLeftCloseIcon />}
+        {collapsed
+          ? side === 'left'
+            ? <PanelLeftOpenIcon />
+            : <PanelLeftCloseIcon />
+          : side === 'left'
+            ? <PanelLeftCloseIcon />
+            : <PanelLeftOpenIcon />}
       </button>
 
       {!collapsed && (
@@ -84,7 +94,7 @@ export function ResizablePanel({
           <div
             onPointerDown={startResize}
             className={cn(
-              'absolute top-0 bottom-0 z-20 w-1.5 cursor-col-resize hover:bg-sky-500/40',
+              'absolute top-0 bottom-0 z-20 w-1.5 cursor-col-resize hover:bg-primary/40',
               side === 'left' ? '-right-0.5' : '-left-0.5',
             )}
           />

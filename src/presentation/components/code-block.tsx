@@ -21,7 +21,9 @@ export type CodeBlockData = {
   title?: string
   showLineNumbers?: boolean
   visibleRange?: [number, number]
+  // focusLines: dim everything else. highlightLines: background highlight only.
   focusLines?: number[]
+  highlightLines?: number[]
   diff?: { added?: number[]; removed?: number[] }
   fontSize?: number
   // Presentation reveal of the code on slide enter.
@@ -49,7 +51,6 @@ export function CodeBlock({
   const [hl, setHl] = useState<HighlightedCode | null>(null)
   const [tab, setTab] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const preRef = useRef<HTMLPreElement>(null)
 
   const files = data.files
   const active = data.activeFile ?? tab
@@ -101,6 +102,7 @@ export function CodeBlock({
   const lines = hl?.lines ?? file.code.split('\n').map(() => [])
   const added = new Set(data.diff?.added ?? [])
   const removed = new Set(data.diff?.removed ?? [])
+  const highlighted = new Set(data.highlightLines ?? [])
   const focus = data.focusLines && data.focusLines.length > 0
   const [start, end] = data.visibleRange ?? [1, lines.length]
   const editor = mode === 'editor'
@@ -123,6 +125,7 @@ export function CodeBlock({
     const hidden = lineReveal && n > revealed
     const isAdded = added.has(n)
     const isRemoved = removed.has(n)
+    const isHi = highlighted.has(n)
     return (
       <div
         key={n}
@@ -131,11 +134,14 @@ export function CodeBlock({
           height: lineHeight,
           opacity: hidden ? 0 : dimmed ? 0.32 : 1,
           transition: 'opacity 300ms ease',
+          boxShadow: isHi ? 'inset 3px 0 0 #f5d90a' : undefined,
           background: isAdded
             ? 'rgba(46,160,67,0.18)'
             : isRemoved
               ? 'rgba(248,81,73,0.18)'
-              : undefined,
+              : isHi
+                ? 'rgba(245,217,10,0.14)'
+                : undefined,
         }}
       >
         {data.showLineNumbers !== false && (
@@ -191,40 +197,32 @@ export function CodeBlock({
     </div>
   )
 
-  // Editing: transparent textarea over highlighted code ----------------------
+  // Editing: a visible, themed textarea (reliable typing/paste). Token
+  // highlighting returns the moment the element is deselected / presented.
   if (editable) {
     return chrome(
-      <div className="relative h-full" style={{ ...codeStyle }}>
-        <pre
-          ref={preRef}
-          aria-hidden
-          className="pointer-events-none absolute inset-0 m-0 overflow-hidden whitespace-pre p-3"
-          style={codeStyle}
-        >
-          {lines.map((tokens, i) => (
-            <div key={i}>
-              {tokens.length === 0
-                ? '\u00a0'
-                : tokens.map((t, ti) => (
-                    <span key={ti} style={{ color: t.color, fontStyle: t.fontStyle === 1 ? 'italic' : undefined }}>
-                      {t.content}
-                    </span>
-                  ))}
-            </div>
-          ))}
-        </pre>
-        <textarea
-          spellCheck={false}
-          value={file.code}
-          onChange={(e) => onChange?.(e.target.value)}
-          onScroll={(e) => {
-            const el = e.currentTarget
-            if (preRef.current) preRef.current.style.transform = `translate(${-el.scrollLeft}px, ${-el.scrollTop}px)`
-          }}
-          className="absolute inset-0 resize-none overflow-auto whitespace-pre bg-transparent p-3 text-transparent outline-none"
-          style={{ ...codeStyle, caretColor: hl?.foreground ?? '#e5e7eb' }}
-        />
-      </div>,
+      <textarea
+        autoFocus
+        spellCheck={false}
+        value={file.code}
+        onChange={(e) => onChange?.(e.target.value)}
+        onPaste={(e) => {
+          e.stopPropagation()
+          const text = e.clipboardData.getData('text')
+          const el = e.currentTarget
+          const next = file.code.slice(0, el.selectionStart) + text + file.code.slice(el.selectionEnd)
+          e.preventDefault()
+          onChange?.(next)
+        }}
+        className="h-full w-full resize-none overflow-auto whitespace-pre p-3 outline-none"
+        style={{
+          ...codeStyle,
+          background: hl?.background ?? 'var(--card)',
+          color: hl?.foreground ?? '#e5e7eb',
+          caretColor: hl?.foreground ?? '#e5e7eb',
+          border: 'none',
+        }}
+      />,
     )
   }
 
