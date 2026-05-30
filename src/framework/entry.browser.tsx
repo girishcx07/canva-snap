@@ -8,26 +8,14 @@ import {
 import React from 'react'
 import { createRoot, hydrateRoot } from 'react-dom/client'
 import { rscStream } from 'rsc-html-stream/client'
-import { RepoCodeBrowserSkeleton } from '../components/repo/repo-code-browser-skeleton'
-import { Badge } from '../components/ui/badge'
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '../components/ui/card'
-import { Skeleton } from '../components/ui/skeleton'
 import {
   applyBrowserThemeMode,
   getBrowserThemeMode,
   getThemeBootstrapScript,
 } from '../components/theme/theme-utils'
-import { appRoutes, matchRoute, type AppRoute } from '../routes'
+import { matchRoute } from '../routes'
 import type { RscPayload } from './entry.rsc'
 import { GlobalErrorBoundary } from './error-boundary'
-import { Link } from './link'
 import {
   createNavigationState,
   dispatchRscNavigationEvent,
@@ -288,94 +276,10 @@ function BrowserDocumentFallback() {
         <title>{routeMatch.route.title}</title>
       </head>
       <body>
-        <main className="min-h-svh bg-background">
-          {routeMatch.route.id === 'overview' ? (
-            <RepoCodeBrowserSkeleton />
-          ) : (
-            <>
-              <section className="border-b bg-muted/30">
-                <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
-                  <div className="flex max-w-3xl flex-col gap-3">
-                    <div className="flex flex-wrap gap-2">
-                      {routeMatch.route.capabilities.map((capability) => (
-                        <Badge key={capability} variant="outline">
-                          {capability.toUpperCase()}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <h1 className="text-3xl font-semibold tracking-normal sm:text-4xl">
-                        {routeMatch.route.title}
-                      </h1>
-                      <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-                        {routeMatch.route.description}
-                      </p>
-                    </div>
-                  </div>
-
-                  <FallbackNav route={routeMatch.route} />
-
-                  <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
-                    <p>Request: {window.location.href}</p>
-                    <p>Status: {routeMatch.status}</p>
-                    <p>Streaming RSC payload</p>
-                  </div>
-                </div>
-              </section>
-
-              <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-6 sm:px-6 lg:grid-cols-2 lg:px-8">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{routeMatch.route.navLabel}</CardTitle>
-                    <CardDescription>{routeMatch.route.description}</CardDescription>
-                    <CardAction>
-                      <Badge variant="secondary">Loading</Badge>
-                    </CardAction>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3">
-                    <Skeleton className="h-5 w-2/3" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-4/5" />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <Skeleton className="h-5 w-1/2" />
-                    <Skeleton className="h-4 w-3/4" />
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-3 gap-2">
-                    <Skeleton className="h-16" />
-                    <Skeleton className="h-16" />
-                    <Skeleton className="h-16" />
-                  </CardContent>
-                </Card>
-              </section>
-            </>
-          )}
+        <main className="grid min-h-svh place-items-center bg-background">
+          <div className="size-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
         </main>
       </body>
     </html>
-  )
-}
-
-function FallbackNav({ route: currentRoute }: { route: AppRoute }) {
-  return (
-    <nav aria-label="App routes" className="flex flex-wrap gap-2">
-      {appRoutes.map((route) => (
-        <Link
-          key={route.id}
-          cache="force-cache"
-          aria-current={route.id === currentRoute.id ? 'page' : undefined}
-          className={
-            route.id === currentRoute.id
-              ? 'inline-flex h-8 items-center rounded-lg border border-primary bg-primary px-2.5 text-sm font-medium text-primary-foreground'
-              : 'inline-flex h-8 items-center rounded-lg border bg-background px-2.5 text-sm font-medium text-foreground'
-          }
-          href={route.path}
-        >
-          {route.navLabel}
-        </Link>
-      ))}
-    </nav>
   )
 }

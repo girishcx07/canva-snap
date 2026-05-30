@@ -1,86 +1,46 @@
-export type RouteCapability = 'ssr' | 'rsc' | 'client' | 'action' | 'diagnostic'
+// App route table. Drives SSR status, navigation, and RSC payloads. Supports a
+// trailing dynamic id segment for editor/present routes.
 
 export type AppRoute = {
-  capabilities: RouteCapability[]
   description: string
-  id: 'overview' | 'ssr' | 'rsc' | 'client' | 'actions' | 'runtime' | 'not-found'
+  id: 'home' | 'editor' | 'present' | 'not-found'
   navLabel: string
   path: string
   title: string
 }
 
-export type RepoRoute = {
-  branch: string
-  kind: 'blob' | 'tree'
-  path: string | null
-}
-
 export type RouteMatch = {
   pathname: string
-  repo?: RepoRoute
+  params: { id?: string }
   route: AppRoute
   status: number
 }
 
 export const appRoutes: AppRoute[] = [
   {
-    capabilities: ['ssr', 'rsc', 'client', 'action'],
-    description:
-      'GitHub-style repository browser powered by repo, tree, and blob API calls.',
-    id: 'overview',
-    navLabel: 'Code',
+    description: 'Workspace dashboard of your presentations.',
+    id: 'home',
+    navLabel: 'Dashboard',
     path: '/',
-    title: 'GitHub code viewer',
+    title: 'Presentations',
   },
   {
-    capabilities: ['ssr'],
-    description:
-      'Server-rendered HTML route that fetches data before the browser hydrates.',
-    id: 'ssr',
-    navLabel: 'SSR',
-    path: '/ssr',
-    title: 'SSR route',
+    description: 'Canva-style editor with Snappify-style morphing.',
+    id: 'editor',
+    navLabel: 'Editor',
+    path: '/editor',
+    title: 'Editor',
   },
   {
-    capabilities: ['rsc'],
-    description:
-      'Server component route streamed as a Flight payload and reused by SSR and client navigation.',
-    id: 'rsc',
-    navLabel: 'RSC',
-    path: '/rsc',
-    title: 'RSC route',
-  },
-  {
-    capabilities: ['client'],
-    description:
-      'Hydrated client island route that fetches browser-side data after SSR.',
-    id: 'client',
-    navLabel: 'Client',
-    path: '/client',
-    title: 'Client route',
-  },
-  {
-    capabilities: ['action'],
-    description:
-      'Server action route with progressive form support and RSC re-rendering.',
-    id: 'actions',
-    navLabel: 'Actions',
-    path: '/actions',
-    title: 'Server actions route',
-  },
-  {
-    capabilities: ['diagnostic'],
-    description:
-      'Route map for the Vite environments, request conventions, and app routes.',
-    id: 'runtime',
-    navLabel: 'Runtime',
-    path: '/runtime',
-    title: 'Runtime route map',
+    description: 'Fullscreen presentation runtime.',
+    id: 'present',
+    navLabel: 'Present',
+    path: '/present',
+    title: 'Presenting',
   },
 ]
 
 export const notFoundRoute: AppRoute = {
-  capabilities: ['diagnostic'],
   description: 'No route matched this URL.',
   id: 'not-found',
   navLabel: 'Not found',
@@ -90,29 +50,24 @@ export const notFoundRoute: AppRoute = {
 
 export function matchRoute(url: URL): RouteMatch {
   const pathname = normalizePathname(url.pathname)
-  const repo = matchRepoRoute(pathname)
+  const parts = pathname.split('/').filter(Boolean)
+  const head = parts[0]
 
-  if (repo) {
-    return {
-      pathname,
-      repo,
-      route: appRoutes[0],
-      status: 200,
-    }
+  if (pathname === '/') {
+    return { pathname, params: {}, route: appRoutes[0], status: 200 }
   }
 
-  const route = appRoutes.find((item) => item.path === pathname)
+  if (head === 'editor') {
+    return { pathname, params: { id: parts[1] }, route: appRoutes[1], status: 200 }
+  }
 
-  if (route) {
-    return {
-      pathname,
-      route,
-      status: 200,
-    }
+  if (head === 'present') {
+    return { pathname, params: { id: parts[1] }, route: appRoutes[2], status: 200 }
   }
 
   return {
     pathname,
+    params: {},
     route: {
       ...notFoundRoute,
       description: `No route is registered for ${pathname}.`,
@@ -122,39 +77,7 @@ export function matchRoute(url: URL): RouteMatch {
   }
 }
 
-function matchRepoRoute(pathname: string): RepoRoute | null {
-  const parts = pathname.split('/').filter(Boolean)
-  const kind = parts[0]
-
-  if (kind !== 'blob' && kind !== 'tree') {
-    return null
-  }
-
-  const branch = parts[1] ? decodePathPart(parts[1]) : ''
-
-  if (!branch) {
-    return null
-  }
-
-  return {
-    branch,
-    kind,
-    path: parts.slice(2).map(decodePathPart).join('/') || null,
-  }
-}
-
 export function normalizePathname(pathname: string) {
-  if (pathname === '/') {
-    return pathname
-  }
-
+  if (pathname === '/') return pathname
   return pathname.replace(/\/+$/, '') || '/'
-}
-
-function decodePathPart(value: string) {
-  try {
-    return decodeURIComponent(value)
-  } catch {
-    return value
-  }
 }
