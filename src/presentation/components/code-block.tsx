@@ -32,11 +32,13 @@ export function CodeBlock({
   className,
   mode = 'present',
   interactive = false,
+  onChange,
 }: {
   data: CodeBlockData
   className?: string
   mode?: 'editor' | 'present'
   interactive?: boolean
+  onChange?: (code: string) => void
 }) {
   const { codeTheme } = useTheme()
   const [hl, setHl] = useState<HighlightedCode | null>(null)
@@ -119,6 +121,30 @@ export function CodeBlock({
   if (editor) {
     const bandTop = (start - 1) * lineHeight
     const bandHeight = (end - start + 1) * lineHeight
+
+    // When selected, edit/paste code directly in the block.
+    if (interactive && onChange) {
+      return (
+        <textarea
+          spellCheck={false}
+          value={data.code}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn('resize-none rounded-xl font-mono outline-none', className)}
+          style={{
+            background: hl?.background ?? 'var(--card)',
+            color: hl?.foreground ?? 'inherit',
+            fontSize,
+            lineHeight: `${lineHeight}px`,
+            height: '100%',
+            width: '100%',
+            padding: '12px 16px',
+            border: 'none',
+            whiteSpace: 'pre',
+          }}
+        />
+      )
+    }
+
     return (
       <div
         ref={scrollRef}

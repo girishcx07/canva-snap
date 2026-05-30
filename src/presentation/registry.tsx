@@ -26,7 +26,7 @@ import type { ReactNode } from 'react'
 import { defaultTransform, uid } from './doc'
 import type { Layer, LayerStyle, Transform } from './types'
 import { CodeBlock, type CodeBlockData } from './components/code-block'
-import { FlexDemo, type FlexDemoData } from './components/flex-demo'
+import { codeLanguages } from '@/lib/code-highlighter'
 
 export type ComponentCategory =
   | 'text'
@@ -57,7 +57,12 @@ export type ComponentDefinition = {
   defaultTransform?: () => Partial<Transform>
   defaultStyle?: () => LayerStyle
   fields?: Field[]
-  render: (ctx: { layer: Layer; mode: RenderMode; selected?: boolean }) => ReactNode
+  render: (ctx: {
+    layer: Layer
+    mode: RenderMode
+    selected?: boolean
+    update?: (patch: Partial<Layer>) => void
+  }) => ReactNode
 }
 
 const registry = new Map<string, ComponentDefinition>()
@@ -105,14 +110,16 @@ export function LayerView({
   layer,
   mode,
   selected,
+  update,
 }: {
   layer: Layer
   mode: RenderMode
   selected?: boolean
+  update?: (patch: Partial<Layer>) => void
 }) {
   const def = getComponent(layer.type)
   if (!def) return null
-  return <>{def.render({ layer, mode, selected })}</>
+  return <>{def.render({ layer, mode, selected, update })}</>
 }
 
 // --- Built-in components ----------------------------------------------------
@@ -307,15 +314,24 @@ registerComponent({
     }) satisfies CodeBlockData,
   defaultTransform: () => ({ width: 520, height: 280 }),
   fields: [
-    { key: 'code', label: 'Code', type: 'textarea' },
-    { key: 'language', label: 'Language', type: 'text' },
+    {
+      key: 'language',
+      label: 'Language',
+      type: 'select',
+      options: codeLanguages.map((l) => ({ label: l, value: l })),
+    },
   ],
-  render: ({ layer, mode, selected }) => (
+  render: ({ layer, mode, selected, update }) => (
     <CodeBlock
       data={layer.data as CodeBlockData}
       className="h-full w-full"
       mode={mode}
       interactive={mode === 'editor' && !!selected}
+      onChange={
+        update
+          ? (code) => update({ data: { ...layer.data, code } })
+          : undefined
+      }
     />
   ),
 })
@@ -385,27 +401,28 @@ registerComponent({
 })
 
 registerComponent({
-  type: 'flex-demo',
-  label: 'Flexbox',
-  category: 'interactive',
-  icon: BoxIcon,
-  interactive: true,
-  defaultData: () =>
-    ({
-      items: 4,
-      direction: 'row',
-      justify: 'flex-start',
-      align: 'stretch',
-      gap: 12,
-      wrap: 'nowrap',
-    }) satisfies FlexDemoData,
-  defaultTransform: () => ({ width: 760, height: 420 }),
-  render: ({ layer, mode, selected }) => (
-    <FlexDemo
-      data={layer.data as FlexDemoData}
-      interactive={mode === 'present' || !!selected}
-    />
-  ),
+  type: 'arrow',
+  label: 'Arrow',
+  category: 'layouts',
+  icon: ArrowRightIcon,
+  defaultData: () => ({}),
+  defaultTransform: () => ({ width: 220, height: 40 }),
+  defaultStyle: () => ({ color: '#ffffff', borderWidth: 4 }),
+  render: ({ layer }) => {
+    const w = layer.transform.width
+    const h = layer.transform.height
+    const c = layer.style.color ?? '#ffffff'
+    const sw = layer.style.borderWidth ?? 4
+    return (
+      <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
+        <line x1={0} y1={h / 2} x2={w - 14} y2={h / 2} stroke={c} strokeWidth={sw} strokeLinecap="round" />
+        <polygon
+          points={`${w - 16},${h / 2 - 9} ${w},${h / 2} ${w - 16},${h / 2 + 9}`}
+          fill={c}
+        />
+      </svg>
+    )
+  },
 })
 
 function PositionedChild({ layer, mode }: { layer: Layer; mode: RenderMode }) {

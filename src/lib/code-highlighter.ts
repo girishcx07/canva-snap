@@ -59,6 +59,8 @@ const themeLoaders = {
   'github-light': () => import('shiki/themes/github-light.mjs'),
 } satisfies Record<CodeTheme, () => Promise<unknown>>
 
+export const codeLanguages = Object.keys(languageLoaders).sort()
+
 const loadedLanguages = new Set<string>()
 const loadedThemes = new Set<CodeTheme>()
 let highlighterPromise: ReturnType<typeof createRepoHighlighter> | null = null

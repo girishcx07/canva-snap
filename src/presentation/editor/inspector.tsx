@@ -3,22 +3,23 @@
 // Property inspector. Edits the selected layer (arrange / style / type fields /
 // animations) or, when nothing is selected, the slide and project settings.
 
-import { PlusIcon, XIcon } from 'lucide-react'
-
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 
-import {
-  ANIMATION_CATEGORIES,
-  createAnimationInstance,
-  getPreset,
-  presetsByCategory,
-} from '../engine/animation'
 import { findLayer } from '../doc'
 import { getComponent } from '../registry'
 import type { EditorStore } from '../store'
 import { useEditorStore } from '../store'
 import type { Layer, SlideTransitionType } from '../types'
+
+const GRADIENTS = [
+  'linear-gradient(135deg, #7c3aed, #06b6d4)',
+  'linear-gradient(135deg, #f59e0b, #ef4444)',
+  'linear-gradient(135deg, #0ea5e9, #6366f1)',
+  'linear-gradient(135deg, #10b981, #0ea5e9)',
+  'linear-gradient(135deg, #111827, #374151)',
+  'linear-gradient(135deg, #fafafa, #e5e7eb)',
+]
 
 export function Inspector({ store }: { store: EditorStore }) {
   const project = useEditorStore(store, (s) => s.project)
@@ -121,52 +122,7 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
           onChange={(e) => store.patchLayer(layer.id, { morphKey: e.target.value || undefined })}
         />
       </Section>
-
-      <AnimationsSection store={store} layer={layer} />
     </>
-  )
-}
-
-function AnimationsSection({ store, layer }: { store: EditorStore; layer: Layer }) {
-  const add = (presetId: string) =>
-    store.patchLayer(layer.id, {
-      animations: [...layer.animations, createAnimationInstance(presetId)],
-    })
-  const remove = (id: string) =>
-    store.patchLayer(layer.id, {
-      animations: layer.animations.filter((a) => a.id !== id),
-    })
-
-  return (
-    <Section title="Animations">
-      <div className="flex flex-col gap-1">
-        {layer.animations.map((anim) => (
-          <div key={anim.id} className="flex items-center justify-between rounded-md bg-muted px-2 py-1 text-xs">
-            <span>{getPreset(anim.presetId)?.name ?? anim.presetId}</span>
-            <button onClick={() => remove(anim.id)} className="text-muted-foreground hover:text-foreground">
-              <XIcon className="size-3" />
-            </button>
-          </div>
-        ))}
-      </div>
-      {ANIMATION_CATEGORIES.map((category) => (
-        <div key={category} className="flex flex-col gap-1">
-          <span className="text-[10px] text-muted-foreground capitalize">{category}</span>
-          <div className="flex flex-wrap gap-1">
-            {presetsByCategory(category).map((preset) => (
-              <button
-                key={preset.id}
-                onClick={() => add(preset.id)}
-                className="flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] hover:bg-muted"
-              >
-                <PlusIcon className="size-3" />
-                {preset.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-    </Section>
   )
 }
 
@@ -184,6 +140,19 @@ function SlideInspector({ store }: { store: EditorStore }) {
           value={slide.background}
           onChange={(v) => store.patchSlide(slide.id, { background: v })}
         />
+        <Field label="Gradients">
+          <div className="flex flex-wrap gap-1.5">
+            {GRADIENTS.map((g) => (
+              <button
+                key={g}
+                title="Apply gradient"
+                onClick={() => store.patchSlide(slide.id, { background: g })}
+                className="size-7 rounded-md border"
+                style={{ background: g }}
+              />
+            ))}
+          </div>
+        </Field>
         <Field label="Transition">
           <NativeSelect
             value={slide.transition.type}

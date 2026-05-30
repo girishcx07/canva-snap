@@ -59,53 +59,37 @@ export function ResizablePanel({
     window.addEventListener('pointerup', onUp)
   }
 
-  if (collapsed) {
-    return (
-      <div
-        className={cn(
-          'flex w-9 shrink-0 justify-center bg-background pt-2',
-          side === 'left' ? 'border-r' : 'border-l',
-        )}
-      >
-        <button
-          onClick={() => setCollapsed(false)}
-          className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted [&_svg]:size-4"
-          title="Expand panel"
-        >
-          <PanelLeftOpenIcon />
-        </button>
-      </div>
-    )
-  }
-
   return (
     <div
       className={cn(
-        'relative flex shrink-0 flex-col bg-background',
+        'relative flex shrink-0 flex-col overflow-hidden bg-background transition-[width] duration-200 ease-out',
         side === 'left' ? 'border-r' : 'border-l',
       )}
-      style={{ width }}
+      style={{ width: collapsed ? 36 : width }}
     >
       <button
-        onClick={() => setCollapsed(true)}
+        onClick={() => setCollapsed((c) => !c)}
         className={cn(
-          'absolute top-2 z-10 grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted [&_svg]:size-3.5',
-          side === 'left' ? 'right-2' : 'left-2',
+          'absolute top-2 z-10 grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted [&_svg]:size-4',
+          side === 'left' ? 'right-1.5' : 'left-1.5',
         )}
-        title="Collapse panel"
+        title={collapsed ? 'Expand panel' : 'Collapse panel'}
       >
-        <PanelLeftCloseIcon />
+        {collapsed ? <PanelLeftOpenIcon /> : <PanelLeftCloseIcon />}
       </button>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
-
-      <div
-        onPointerDown={startResize}
-        className={cn(
-          'absolute top-0 bottom-0 z-20 w-1.5 cursor-col-resize hover:bg-primary/40',
-          side === 'left' ? '-right-0.5' : '-left-0.5',
-        )}
-      />
+      {!collapsed && (
+        <>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+          <div
+            onPointerDown={startResize}
+            className={cn(
+              'absolute top-0 bottom-0 z-20 w-1.5 cursor-col-resize hover:bg-primary/40',
+              side === 'left' ? '-right-0.5' : '-left-0.5',
+            )}
+          />
+        </>
+      )}
     </div>
   )
 }

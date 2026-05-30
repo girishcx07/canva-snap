@@ -86,10 +86,12 @@ export function Toolbar({ store }: { store: EditorStore }) {
               {listExporters().map((exp) => (
                 <button
                   key={exp.format}
+                  disabled={!exp.available}
                   onClick={() => runExport(exp.format)}
-                  className="rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                  className="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
                 >
                   {exp.label}
+                  {!exp.available && <span className="text-[10px] text-muted-foreground">soon</span>}
                 </button>
               ))}
             </div>

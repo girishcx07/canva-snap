@@ -5,12 +5,20 @@
 // cached per query; clicking inserts a centered layer on the current slide.
 
 import { useEffect, useState } from 'react'
-import { SearchIcon } from 'lucide-react'
+import { SearchIcon, XIcon } from 'lucide-react'
 
 import { Input } from '@/components/ui/input'
 
+import {
+  ANIMATION_CATEGORIES,
+  createAnimationInstance,
+  getPreset,
+  presetsByCategory,
+} from '../engine/animation'
 import { createCenteredLayer } from '../registry'
-import type { EditorStore } from '../store'
+import { useEditorStore, type EditorStore } from '../store'
+import { findLayer } from '../doc'
+import { TEMPLATES } from '../templates'
 
 type PanelProps = { store: EditorStore }
 
@@ -95,12 +103,100 @@ export function ShapesPanel({ store }: PanelProps) {
   )
 }
 
-export function TemplatesPanel() {
+export function AnimationsPanel({ store }: PanelProps) {
+  const project = useEditorStore(store, (s) => s.project)
+  const currentSlideId = useEditorStore(store, (s) => s.currentSlideId)
+  const selected = useEditorStore(store, (s) => s.selectedLayerIds)
+  const slide =
+    project.slides.find((s) => s.id === currentSlideId) ?? project.slides[0]
+  const layer = selected[0] ? findLayer(slide.layers, selected[0]) : undefined
+
+  if (!layer) {
+    return (
+      <p className="px-1 text-sm text-muted-foreground">
+        Select an element to add animations.
+      </p>
+    )
+  }
+  const target = layer
+
+  // One animation per category: adding replaces any existing one in it.
+  function apply(presetId: string, category: string) {
+    const kept = target.animations.filter(
+      (a) => getPreset(a.presetId)?.category !== category,
+    )
+    store.patchLayer(target.id, {
+      animations: [...kept, createAnimationInstance(presetId)],
+    })
+  }
+
+  function clear(category: string) {
+    store.patchLayer(target.id, {
+      animations: target.animations.filter(
+        (a) => getPreset(a.presetId)?.category !== category,
+      ),
+    })
+  }
+
   return (
-    <p className="px-1 text-sm text-muted-foreground">
-      Template gallery coming soon. Start from a blank slide and save your own
-      as templates.
-    </p>
+    <div className="flex flex-col gap-4">
+      {ANIMATION_CATEGORIES.map((category) => {
+        const current = target.animations.find(
+          (a) => getPreset(a.presetId)?.category === category,
+        )
+        return (
+          <div key={category} className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium capitalize">{category}</span>
+              {current && (
+                <button
+                  onClick={() => clear(category)}
+                  className="text-muted-foreground hover:text-foreground"
+                  title="Remove"
+                >
+                  <XIcon className="size-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {presetsByCategory(category).map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => apply(preset.id, category)}
+                  className={
+                    'rounded-lg border px-2 py-1.5 text-xs hover:bg-muted ' +
+                    (current?.presetId === preset.id
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : '')
+                  }
+                >
+                  {preset.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export function TemplatesPanel({ store }: PanelProps) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-muted-foreground">
+        Applying a template replaces the current deck.
+      </p>
+      {TEMPLATES.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => store.replaceProject(t.build())}
+          className="rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted"
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
   )
 }
 

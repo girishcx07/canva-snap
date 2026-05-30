@@ -37,8 +37,12 @@ export function ElementsPalette({ store }: { store: EditorStore }) {
               {items.map((def) => (
                 <button
                   key={def.type}
+                  draggable
+                  onDragStart={(e) =>
+                    e.dataTransfer.setData('application/x-deck-element', def.type)
+                  }
                   onClick={() => add(def.type)}
-                  className="flex h-16 flex-col items-center justify-center gap-1 rounded-lg border text-xs transition-colors hover:bg-muted"
+                  className="flex h-16 cursor-grab flex-col items-center justify-center gap-1 rounded-lg border text-xs transition-colors hover:bg-muted active:cursor-grabbing"
                 >
                   <def.icon className="size-5 text-muted-foreground" />
                   {def.label}

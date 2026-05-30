@@ -34,6 +34,8 @@ export interface Exporter {
   label: string
   mimeType: string
   capabilities: ExporterCapabilities
+  // Whether the exporter is implemented; the UI disables unavailable ones.
+  available: boolean
   export(project: Project, options: ExportOptions): Promise<ExportResult>
 }
 
@@ -69,6 +71,7 @@ registerExporter({
   label: 'HTML',
   mimeType: 'text/html',
   capabilities: { animated: true, multiSlide: true },
+  available: true,
   async export(project) {
     const json = JSON.stringify(project)
     const html = `<!doctype html>
@@ -104,6 +107,7 @@ function staged(
     label,
     mimeType,
     capabilities,
+    available: false,
     async export() {
       throw new ExportNotImplementedError(format)
     },

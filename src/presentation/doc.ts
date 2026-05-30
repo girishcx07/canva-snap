@@ -170,7 +170,7 @@ export function addSlide(project: Project, afterId?: ID): Project {
   const slide: Slide = {
     id: uid('slide'),
     name: `Slide ${project.slides.length + 1}`,
-    background: project.theme === 'dark' ? '#0b0b0f' : '#ffffff',
+    background: '#ffffff',
     layers: [],
     transition: { type: 'morph', durationMs: 600, easing: 'easeInOut' },
     notes: '',

@@ -10,8 +10,10 @@ import {
   LayersIcon,
   LayoutTemplateIcon,
   type LucideIcon,
+  PanelLeftCloseIcon,
   ShapesIcon,
   SmileIcon,
+  SparklesIcon,
   SquareIcon,
   TypeIcon,
 } from 'lucide-react'
@@ -22,6 +24,7 @@ import type { EditorStore } from '../store'
 import { ElementsPalette } from './elements-palette'
 import { LayersPanel } from './layers-panel'
 import {
+  AnimationsPanel,
   CodePanel,
   IconsPanel,
   ImagesPanel,
@@ -38,6 +41,7 @@ type RailId =
   | 'shapes'
   | 'images'
   | 'icons'
+  | 'animations'
   | 'layers'
 
 const RAIL: { id: RailId; label: string; icon: LucideIcon }[] = [
@@ -48,11 +52,13 @@ const RAIL: { id: RailId; label: string; icon: LucideIcon }[] = [
   { id: 'shapes', label: 'Shapes', icon: SquareIcon },
   { id: 'images', label: 'Images', icon: ImageIcon },
   { id: 'icons', label: 'Icons', icon: SmileIcon },
+  { id: 'animations', label: 'Animate', icon: SparklesIcon },
   { id: 'layers', label: 'Layers', icon: LayersIcon },
 ]
 
 export function Sidebar({ store }: { store: EditorStore }) {
-  const [active, setActive] = useState<RailId | null>('elements')
+  const [active, setActive] = useState<RailId>('elements')
+  const [collapsed, setCollapsed] = useState(false)
   const [width, setWidth] = useState(300)
   const loaded = useRef(false)
 
@@ -85,10 +91,16 @@ export function Sidebar({ store }: { store: EditorStore }) {
         {RAIL.map((item) => (
           <button
             key={item.id}
-            onClick={() => setActive((a) => (a === item.id ? null : item.id))}
+            onClick={() => {
+              if (item.id === active) setCollapsed((c) => !c)
+              else {
+                setActive(item.id)
+                setCollapsed(false)
+              }
+            }}
             className={cn(
               'mx-1.5 flex flex-col items-center gap-1 rounded-md py-2 text-[10px] font-medium text-muted-foreground hover:bg-muted',
-              active === item.id && 'bg-muted text-primary',
+              active === item.id && !collapsed && 'bg-muted text-primary',
             )}
           >
             <item.icon className="size-5" />
@@ -97,23 +109,28 @@ export function Sidebar({ store }: { store: EditorStore }) {
         ))}
       </div>
 
-      {active && (
-        <div
-          className="relative flex min-h-0 shrink-0 flex-col border-r bg-background"
-          style={{ width }}
-        >
-          <div className="border-b px-3 py-2 text-sm font-semibold capitalize">
-            {active}
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto p-3">
-            <PanelContent id={active} store={store} />
-          </div>
-          <div
-            onPointerDown={startResize}
-            className="absolute top-0 -right-0.5 bottom-0 z-10 w-1.5 cursor-col-resize hover:bg-primary/40"
-          />
+      <div
+        className="relative flex min-h-0 shrink-0 flex-col overflow-hidden border-r bg-background transition-[width] duration-200 ease-out"
+        style={{ width: collapsed ? 0 : width }}
+      >
+        <div className="flex shrink-0 items-center justify-between border-b px-3 py-2 text-sm font-semibold capitalize">
+          {active}
+          <button
+            onClick={() => setCollapsed(true)}
+            className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted [&_svg]:size-4"
+            title="Collapse panel"
+          >
+            <PanelLeftCloseIcon />
+          </button>
         </div>
-      )}
+        <div className="min-h-0 flex-1 overflow-auto p-3" style={{ width }}>
+          <PanelContent id={active} store={store} />
+        </div>
+        <div
+          onPointerDown={startResize}
+          className="absolute top-0 -right-0.5 bottom-0 z-10 w-1.5 cursor-col-resize hover:bg-primary/40"
+        />
+      </div>
     </div>
   )
 }
@@ -121,7 +138,7 @@ export function Sidebar({ store }: { store: EditorStore }) {
 function PanelContent({ id, store }: { id: RailId; store: EditorStore }) {
   switch (id) {
     case 'templates':
-      return <TemplatesPanel />
+      return <TemplatesPanel store={store} />
     case 'elements':
       return <ElementsPalette store={store} />
     case 'text':
@@ -134,6 +151,8 @@ function PanelContent({ id, store }: { id: RailId; store: EditorStore }) {
       return <ImagesPanel store={store} />
     case 'icons':
       return <IconsPanel store={store} />
+    case 'animations':
+      return <AnimationsPanel store={store} />
     case 'layers':
       return <LayersPanel store={store} />
   }

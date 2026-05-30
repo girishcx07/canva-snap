@@ -18,10 +18,10 @@ import {
 
 import { cn } from '@/lib/utils'
 
-import { getComponent, LayerView } from '../registry'
+import { createCenteredLayer, getComponent, LayerView } from '../registry'
 import type { EditorStore } from '../store'
 import { useEditorStore } from '../store'
-import type { Layer, Transform } from '../types'
+import type { Layer, Slide, Transform } from '../types'
 
 type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'rotate' | 'move'
 type View = { zoom: number; panX: number; panY: number }
@@ -52,6 +52,7 @@ export function Canvas({ store }: { store: EditorStore }) {
     vx: [],
     hy: [],
   })
+  const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   const didFit = useRef(false)
 
   const fitScreen = useCallback(
@@ -92,18 +93,45 @@ export function Canvas({ store }: { store: EditorStore }) {
     return () => ro.disconnect()
   }, [fitScreen])
 
-  // Wheel = zoom toward cursor.
-  function onWheel(e: React.WheelEvent) {
+  // Wheel: ctrl/cmd (or trackpad pinch, which sends ctrlKey) zooms toward the
+  // cursor; otherwise it pans. Attached non-passively so preventDefault stops
+  // the browser from zooming the whole page.
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      if (e.ctrlKey || e.metaKey) {
+        const cx = e.clientX - rect.left
+        const cy = e.clientY - rect.top
+        const factor = Math.exp(-e.deltaY * 0.01)
+        setView((v) => {
+          const zoom = clamp(v.zoom * factor, 0.05, 4)
+          const k = zoom / v.zoom
+          return { zoom, panX: cx - (cx - v.panX) * k, panY: cy - (cy - v.panY) * k }
+        })
+      } else {
+        setView((v) => ({ ...v, panX: v.panX - e.deltaX, panY: v.panY - e.deltaY }))
+      }
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
+
+  // Drop an element dragged from the sidebar onto the canvas at the cursor.
+  function onDrop(e: React.DragEvent) {
+    const type = e.dataTransfer.getData('application/x-deck-element')
+    if (!type) return
     e.preventDefault()
     const rect = wrapRef.current!.getBoundingClientRect()
-    const cx = e.clientX - rect.left
-    const cy = e.clientY - rect.top
-    const factor = Math.exp(-e.deltaY * 0.0015)
-    setView((v) => {
-      const zoom = clamp(v.zoom * factor, 0.05, 4)
-      const k = zoom / v.zoom
-      return { zoom, panX: cx - (cx - v.panX) * k, panY: cy - (cy - v.panY) * k }
-    })
+    const wx = (e.clientX - rect.left - view.panX) / view.zoom
+    const wy = (e.clientY - rect.top - view.panY) / view.zoom
+    const l = createCenteredLayer(type, project)
+    if (!l) return
+    l.transform.x = Math.round(wx - l.transform.width / 2)
+    l.transform.y = Math.round(wy - l.transform.height / 2)
+    store.addLayer(l)
   }
 
   // Drag empty space = pan; click without drag = deselect.
@@ -173,8 +201,9 @@ export function Canvas({ store }: { store: EditorStore }) {
     <div
       ref={wrapRef}
       className="relative flex-1 touch-none overflow-hidden bg-muted/60"
-      onWheel={onWheel}
       onPointerDown={onBackgroundPointerDown}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={onDrop}
     >
       {/* Scene */}
       <div
@@ -184,7 +213,6 @@ export function Canvas({ store }: { store: EditorStore }) {
         <div
           className="relative shadow-2xl"
           style={{ width: sw, height: sh, background: slide.background }}
-          onPointerDown={(e) => e.stopPropagation()}
         >
           {opts.grid && (
             <div
@@ -205,9 +233,21 @@ export function Canvas({ store }: { store: EditorStore }) {
                 zoom={view.zoom}
                 selected={selected.includes(layer.id)}
                 onStart={startGesture}
+                onUpdate={(patch) => store.patchLayer(layer.id, patch)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  store.select([layer.id])
+                  setMenu({ x: e.clientX, y: e.clientY, id: layer.id })
+                }}
               />
             ),
           )}
+
+          {/* Dim everything outside the sheet (highlights the in-canvas area). */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ boxShadow: '0 0 0 100000px rgba(9, 9, 14, 0.55)' }}
+          />
 
           {opts.safe && (
             <div
@@ -265,6 +305,17 @@ export function Canvas({ store }: { store: EditorStore }) {
         onFitScreen={() => fitScreen()}
         onFitWidth={fitWidth}
       />
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          layer={slide.layers.find((l) => l.id === menu.id)}
+          store={store}
+          slide={slide}
+          close={() => setMenu(null)}
+        />
+      )}
     </div>
   )
 }
@@ -274,11 +325,15 @@ function LayerBox({
   zoom,
   selected,
   onStart,
+  onUpdate,
+  onContextMenu,
 }: {
   layer: Layer
   zoom: number
   selected: boolean
   onStart: (e: React.PointerEvent, layer: Layer, handle: Handle) => void
+  onUpdate: (patch: Partial<Layer>) => void
+  onContextMenu: (e: React.MouseEvent) => void
 }) {
   const t = layer.transform
   const hs = 10 / zoom
@@ -299,12 +354,13 @@ function LayerBox({
         cursor: layer.locked ? 'default' : 'move',
       }}
       onPointerDown={interactive ? undefined : (e) => onStart(e, layer, 'move')}
+      onContextMenu={onContextMenu}
     >
       <div
         className="h-full w-full"
         style={{ pointerEvents: interactive ? 'auto' : 'none' }}
       >
-        <LayerView layer={layer} mode="editor" selected={selected} />
+        <LayerView layer={layer} mode="editor" selected={selected} update={onUpdate} />
       </div>
 
       {selected && !layer.locked && (
@@ -541,6 +597,57 @@ function niceStep(zoom: number): number {
   const target = 80 / zoom
   const steps = [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]
   return steps.find((s) => s >= target) ?? 10000
+}
+
+function ContextMenu({
+  x,
+  y,
+  layer,
+  store,
+  slide,
+  close,
+}: {
+  x: number
+  y: number
+  layer?: Layer
+  store: EditorStore
+  slide: Slide
+  close: () => void
+}) {
+  if (!layer) return null
+  const index = slide.layers.findIndex((l) => l.id === layer.id)
+  const items: { label: string; run: () => void }[] = [
+    { label: 'Duplicate', run: () => store.duplicateLayer(layer.id) },
+    { label: 'Bring to front', run: () => store.reorderLayer(layer.id, slide.layers.length - 1) },
+    { label: 'Send to back', run: () => store.reorderLayer(layer.id, 0) },
+    { label: 'Forward', run: () => store.reorderLayer(layer.id, index + 1) },
+    { label: 'Backward', run: () => store.reorderLayer(layer.id, index - 1) },
+    { label: layer.locked ? 'Unlock' : 'Lock', run: () => store.patchLayer(layer.id, { locked: !layer.locked }) },
+    { label: layer.hidden ? 'Show' : 'Hide', run: () => store.patchLayer(layer.id, { hidden: !layer.hidden }) },
+    { label: 'Delete', run: () => store.deleteLayer(layer.id) },
+  ]
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onPointerDown={close} onContextMenu={(e) => { e.preventDefault(); close() }} />
+      <div
+        className="fixed z-50 w-44 rounded-lg border bg-popover p-1 text-sm shadow-md"
+        style={{ left: x, top: y }}
+      >
+        {items.map((it) => (
+          <button
+            key={it.label}
+            onClick={() => {
+              it.run()
+              close()
+            }}
+            className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-muted"
+          >
+            {it.label}
+          </button>
+        ))}
+      </div>
+    </>
+  )
 }
 
 function clamp(v: number, min: number, max: number): number {
