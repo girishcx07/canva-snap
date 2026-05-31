@@ -54,8 +54,8 @@ export function Canvas({ store }: { store: EditorStore }) {
     project.slides.find((s) => s.id === currentSlideId) ?? project.slides[0]
 
   if (typeof window !== 'undefined') {
-    (window as any)._activeProject = project
-    (window as any)._activeSlide = slide
+    (window as any)._activeProject = project;
+    (window as any)._activeSlide = slide;
   }
 
   const wrapRef = useRef<HTMLDivElement>(null)

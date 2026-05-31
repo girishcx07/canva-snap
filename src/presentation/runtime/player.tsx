@@ -42,8 +42,8 @@ export function Player({
   const fromSlide = project.slides[nav.from]
 
   if (typeof window !== 'undefined') {
-    (window as any)._activeProject = project
-    (window as any)._activeSlide = slide
+    (window as any)._activeProject = project;
+    (window as any)._activeSlide = slide;
   }
 
   const steps = useMemo(() => scheduleSlideSteps(slide), [slide])
