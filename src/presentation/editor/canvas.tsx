@@ -763,7 +763,7 @@ function LayerBox({
                           textAlign: 'center',
                         }}
                         value={String(layer.data.text ?? '')}
-                        onChange={(e) => store.patchLayer(layer.id, { data: { ...layer.data, text: e.target.value } })}
+                        onChange={(e) => onUpdate({ data: { ...layer.data, text: e.target.value } })}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === 'Escape') {
                             setEditingArrowTextId(null)
