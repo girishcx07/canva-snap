@@ -33,6 +33,11 @@ import { CodeBlock, type CodeBlockData } from './components/code-block'
 import { codeLanguages } from '@/lib/code-highlighter'
 import type { SampledFrame } from './engine/animation'
 
+export function getSlideLayers(): Layer[] {
+  if (typeof window === 'undefined') return []
+  return (window as any)._activeSlide?.layers ?? []
+}
+
 export type ComponentCategory =
   | 'text'
   | 'media'
@@ -211,7 +216,7 @@ registerComponent({
   icon: TypeIcon,
   interactive: true,
   defaultData: () => ({ text: 'Add your text' }),
-  defaultStyle: () => ({ fontSize: 24, color: 'var(--foreground)', textAlign: 'left' }),
+  defaultStyle: () => ({ fontSize: 24, color: '#000000', textAlign: 'left' }),
   fields: [{ key: 'text', label: 'Text', type: 'textarea' }],
   render: ({ layer, mode, selected, update }) => {
     const style: React.CSSProperties = {
@@ -253,7 +258,7 @@ registerComponent({
   interactive: true,
   defaultData: () => ({ text: 'Big Heading' }),
   defaultTransform: () => ({ width: 520, height: 90 }),
-  defaultStyle: () => ({ fontSize: 56, fontWeight: 800, color: 'var(--foreground)' }),
+  defaultStyle: () => ({ fontSize: 56, fontWeight: 800, color: '#000000' }),
   fields: [{ key: 'text', label: 'Heading', type: 'text' }],
   render: ({ layer, mode, selected, update }) => {
     const style: React.CSSProperties = {
@@ -288,7 +293,7 @@ registerComponent({
   category: 'layouts',
   icon: SquareIcon,
   defaultData: () => ({ shape: 'rect' }),
-  defaultStyle: () => ({ fill: '#64748b', borderRadius: 16 }),
+  defaultStyle: () => ({ fill: '#000000', borderRadius: 16 }),
   fields: [
     {
       key: 'shape',
@@ -483,7 +488,7 @@ registerComponent({
   defaultData: () => ({ label: 'Click me' }),
   defaultTransform: () => ({ width: 160, height: 52 }),
   defaultStyle: () => ({
-    fill: '#3b82f6',
+    fill: '#000000',
     color: '#ffffff',
     borderRadius: 12,
     fontSize: 16,
@@ -517,7 +522,7 @@ registerComponent({
   icon: ArrowRightIcon,
   defaultData: () => ({ bendType: 'straight' }),
   defaultTransform: () => ({ width: 220, height: 40 }),
-  defaultStyle: () => ({ color: '#ffffff', borderWidth: 4 }),
+  defaultStyle: () => ({ color: '#000000', borderWidth: 4 }),
   fields: [
     {
       key: 'bendType',
@@ -527,6 +532,26 @@ registerComponent({
         { label: 'Straight Line', value: 'straight' },
         { label: 'Elbow Corner', value: 'corner' },
         { label: 'Smooth Curved', value: 'curved' },
+      ],
+    },
+    {
+      key: 'strokeDash',
+      label: 'Line Style',
+      type: 'select',
+      options: [
+        { label: 'Solid', value: 'solid' },
+        { label: 'Dashed', value: 'dashed' },
+        { label: 'Dotted', value: 'dotted' },
+      ],
+    },
+    {
+      key: 'intersectStyle',
+      label: 'Overlap Style',
+      type: 'select',
+      options: [
+        { label: 'None (Solid/Uniform)', value: 'none' },
+        { label: 'Dotted Inside Elements', value: 'dotted' },
+        { label: 'Dashed Inside Elements', value: 'dashed' },
       ],
     },
   ],
@@ -550,37 +575,73 @@ registerComponent({
     
     // Define bend styles and paths
     const bendType = String(layer.data.bendType ?? 'straight')
-    const startY = sw / 2 + 2
-    const endY = h - (sw / 2 + 2)
-    const lineEndX = w - 14
+    
+    // Resolve absolute coordinates relative to the current bounding box transform
+    const relX1 = layer.data.startX !== undefined ? (Number(layer.data.startX) - layer.transform.x) : 0
+    const relY1 = layer.data.startY !== undefined ? (Number(layer.data.startY) - layer.transform.y) : h / 2
+    const relX2 = layer.data.endX !== undefined ? (Number(layer.data.endX) - layer.transform.x) : w
+    const relY2 = layer.data.endY !== undefined ? (Number(layer.data.endY) - layer.transform.y) : h / 2
+    const relCx = layer.data.controlX !== undefined ? (Number(layer.data.controlX) - layer.transform.x) : (relX1 + relX2) / 2
+    const relCy = layer.data.controlY !== undefined ? (Number(layer.data.controlY) - layer.transform.y) : (relY1 + relY2) / 2
     
     let pathD = ''
     let totalLength = w - 14
-    let arrowHeadY = h / 2
+    let angleDeg = 0
     
     if (bendType === 'straight') {
-      pathD = `M 0,${h / 2} L ${lineEndX},${h / 2}`
-      totalLength = lineEndX
-      arrowHeadY = h / 2
+      const dx = relX2 - relX1
+      const dy = relY2 - relY1
+      const angleRad = Math.atan2(dy, dx)
+      angleDeg = (angleRad * 180) / Math.PI
+      const dist = Math.hypot(dx, dy)
+      const endRatio = dist > 0 ? Math.max(0, dist - 14) / dist : 0
+      const lineEndX = relX1 + dx * endRatio
+      const lineEndY = relY1 + dy * endRatio
+      
+      pathD = `M ${relX1},${relY1} L ${lineEndX},${lineEndY}`
+      totalLength = Math.max(0, dist - 14)
     } else if (bendType === 'corner') {
       // Stepped elbow corner (L-shape/elbow)
-      const midX = w / 2
-      pathD = `M 0,${startY} L ${midX},${startY} L ${midX},${endY} L ${lineEndX},${endY}`
-      totalLength = midX + Math.abs(endY - startY) + (lineEndX - midX)
-      arrowHeadY = endY
+      const goingRight = relX2 >= relCx
+      const lineEndX = goingRight ? relX2 - 14 : relX2 + 14
+      pathD = `M ${relX1},${relY1} L ${relCx},${relY1} L ${relCx},${relCy} L ${relCx},${relY2} L ${lineEndX},${relY2}`
+      totalLength = Math.abs(relCx - relX1) + Math.abs(relY2 - relY1) + Math.max(0, Math.abs(relX2 - relCx) - 14)
+      angleDeg = goingRight ? 0 : 180
     } else if (bendType === 'curved') {
-      // Smooth S-curve (cubic Bezier)
-      const midX = w / 2
-      pathD = `M 0,${startY} C ${midX},${startY} ${midX},${endY} ${lineEndX},${endY}`
-      // Approximation of S-curve length
-      totalLength = Math.sqrt(lineEndX * lineEndX + (endY - startY) * (endY - startY)) * 1.08
-      arrowHeadY = endY
+      // Smooth bend (quadratic Bezier)
+      const dx = relX2 - relCx
+      const dy = relY2 - relCy
+      const angleRad = Math.atan2(dy, dx)
+      angleDeg = (angleRad * 180) / Math.PI
+      
+      const lineEndX = relX2 - Math.cos(angleRad) * 14
+      const lineEndY = relY2 - Math.sin(angleRad) * 14
+      
+      pathD = `M ${relX1},${relY1} Q ${relCx},${relCy} ${lineEndX},${lineEndY}`
+      totalLength = Math.hypot(relCx - relX1, relCy - relY1) + Math.hypot(relX2 - relCx, relY2 - relCy) - 14
     }
 
     // Default values (fully drawn)
     let strokeDasharray: string | undefined = undefined
     let strokeDashoffset: number | undefined = undefined
     let headScale = 1
+
+    const strokeDash = String(layer.data.strokeDash ?? 'solid')
+    if (strokeDash === 'dashed') {
+      strokeDasharray = '8, 8'
+    } else if (strokeDash === 'dotted') {
+      strokeDasharray = '2, 6'
+    }
+
+    const intersectStyle = String(layer.data.intersectStyle ?? 'none')
+    const otherLayers = getSlideLayers().filter((ol) => ol.id !== layer.id && !ol.hidden)
+    const hasOverlap = intersectStyle !== 'none' && otherLayers.length > 0
+    const maskId = `arrow-mask-${layer.id}`
+    const dottedMaskId = `arrow-mask-dotted-${layer.id}`
+
+    // Compute midpoint coordinate for label typography positioning
+    const middleX = bendType === 'curved' ? (relX1 + 2 * relCx + relX2) / 4 : relCx
+    const middleY = bendType === 'curved' ? (relY1 + 2 * relCy + relY2) / 4 : relCy
     
     if (mode === 'present' && anim) {
       const progress = frame?.progress ?? 0
@@ -712,6 +773,55 @@ registerComponent({
           `}} />
         )}
         <svg width="100%" height="100%" style={{ overflow: 'visible' }} className={animClass}>
+          {hasOverlap && (
+            <defs>
+              <mask id={maskId}>
+                <rect x="-5000" y="-5000" width="10000" height="10000" fill="white" />
+                {otherLayers.map((ol) => {
+                  const localX = ol.transform.x - layer.transform.x
+                  const localY = ol.transform.y - layer.transform.y
+                  return (
+                    <rect
+                      key={ol.id}
+                      x={localX}
+                      y={localY}
+                      width={ol.transform.width}
+                      height={ol.transform.height}
+                      fill="black"
+                    />
+                  )
+                })}
+              </mask>
+              <mask id={dottedMaskId}>
+                <rect x="-5000" y="-5000" width="10000" height="10000" fill="black" />
+                {otherLayers.map((ol) => {
+                  const localX = ol.transform.x - layer.transform.x
+                  const localY = ol.transform.y - layer.transform.y
+                  return (
+                    <rect
+                      key={ol.id}
+                      x={localX}
+                      y={localY}
+                      width={ol.transform.width}
+                      height={ol.transform.height}
+                      fill="white"
+                    />
+                  )
+                })}
+              </mask>
+            </defs>
+          )}
+
+          {/* Invisible wide stroke for easy pointer hit testing */}
+          <path
+            d={pathD}
+            stroke="transparent"
+            strokeWidth={Math.max(24, sw + 16)}
+            fill="none"
+            style={{ cursor: 'move', pointerEvents: 'stroke' }}
+          />
+
+          {/* Solid/Normal stroke (cut out inside elements if hasOverlap is true) */}
           <path
             d={pathD}
             stroke={c}
@@ -721,17 +831,60 @@ registerComponent({
             fill="none"
             strokeDasharray={strokeDasharray}
             strokeDashoffset={strokeDashoffset}
+            mask={hasOverlap ? `url(#${maskId})` : undefined}
+            style={{ pointerEvents: 'none' }}
           />
+
+          {/* Overlapping stroke (only visible inside elements if hasOverlap is true) */}
+          {hasOverlap && (
+            <path
+              d={pathD}
+              stroke={c}
+              strokeWidth={sw}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+              strokeDasharray={intersectStyle === 'dotted' ? '2, 6' : '8, 8'}
+              strokeDashoffset={strokeDashoffset}
+              mask={`url(#${dottedMaskId})`}
+              style={{ pointerEvents: 'none' }}
+            />
+          )}
+
           <polygon
-            points={`${w - 16},${arrowHeadY - 9} ${w},${arrowHeadY} ${w - 16},${arrowHeadY + 9}`}
+            points={`${relX2 - 16},${relY2 - 9} ${relX2},${relY2} ${relX2 - 16},${relY2 + 9}`}
             fill={c}
             style={{
-              transform: `scale(${headScale})`,
-              transformOrigin: 'right center',
+              transform: `rotate(${angleDeg}deg) scale(${headScale})`,
+              transformOrigin: `${relX2}px ${relY2}px`,
               transition: isPreview ? undefined : 'transform 50ms linear',
+              pointerEvents: 'none',
             }}
           />
         </svg>
+
+        {String(layer.data.text ?? '') && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${bendType === 'curved' ? middleX : relCx}px`,
+              top: `${bendType === 'curved' ? middleY : relCy}px`,
+              transform: 'translate(-50%, -50%)',
+              background: '#ffffff',
+              color: '#000000',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontWeight: 500,
+              border: '1px solid #e2e8f0',
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}
+          >
+            {String(layer.data.text)}
+          </div>
+        )}
       </div>
     )
   }

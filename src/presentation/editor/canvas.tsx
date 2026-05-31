@@ -35,7 +35,7 @@ import type { EditorStore } from '../store'
 import { useEditorStore } from '../store'
 import type { Layer, Slide, Transform } from '../types'
 
-type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'rotate' | 'move'
+type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'rotate' | 'move' | 'arrow-start' | 'arrow-end' | 'arrow-control'
 type View = { zoom: number; panX: number; panY: number }
 type Options = { grid: boolean; snap: boolean; rulers: boolean; safe: boolean }
 
@@ -53,6 +53,11 @@ export function Canvas({ store }: { store: EditorStore }) {
   const slide =
     project.slides.find((s) => s.id === currentSlideId) ?? project.slides[0]
 
+  if (typeof window !== 'undefined') {
+    (window as any)._activeProject = project
+    (window as any)._activeSlide = slide
+  }
+
   const wrapRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 1, h: 1 })
   const [view, setView] = useState<View>({ zoom: 0.5, panX: 0, panY: 0 })
@@ -67,6 +72,13 @@ export function Canvas({ store }: { store: EditorStore }) {
     hy: [],
   })
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null)
+  const [editingArrowTextId, setEditingArrowTextId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (selected.length !== 1 || slide.layers.find((l) => l.id === selected[0])?.type !== 'arrow') {
+      setEditingArrowTextId(null)
+    }
+  }, [selected, slide.layers])
   const didFit = useRef(false)
 
   const fitScreen = useCallback(
@@ -299,9 +311,132 @@ export function Canvas({ store }: { store: EditorStore }) {
       (l) => l.id !== layer.id && !l.hidden,
     )
 
+    const isArrow = layer.type === 'arrow'
+    const bendType = String(layer.data.bendType ?? 'straight')
+    const strokeWidth = layer.style.borderWidth ?? 4
+    const startYDefault = strokeWidth / 2 + 2
+    const endYDefault = base.height - (strokeWidth / 2 + 2)
+
+    // Initial absolute coordinates
+    const initX1 = layer.data.startX !== undefined ? Number(layer.data.startX) : base.x
+    const initY1 = layer.data.startY !== undefined ? Number(layer.data.startY) : (base.y + (bendType === 'straight' ? base.height / 2 : startYDefault))
+    const initX2 = layer.data.endX !== undefined ? Number(layer.data.endX) : (base.x + base.width)
+    const initY2 = layer.data.endY !== undefined ? Number(layer.data.endY) : (base.y + (bendType === 'straight' ? base.height / 2 : endYDefault))
+    const initCx = layer.data.controlX !== undefined ? Number(layer.data.controlX) : (base.x + base.width / 2)
+    const initCy = layer.data.controlY !== undefined ? Number(layer.data.controlY) : (base.y + base.height / 2)
+
     const onMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / view.zoom
       const dy = (ev.clientY - startY) / view.zoom
+
+      if (isArrow && (handle === 'arrow-start' || handle === 'arrow-end' || handle === 'arrow-control')) {
+        let x1 = initX1, y1 = initY1, x2 = initX2, y2 = initY2, cx = initCx, cy = initCy
+        if (handle === 'arrow-start') {
+          x1 = initX1 + dx
+          y1 = initY1 + dy
+          const snapped = snapPointToLayers(x1, y1, others, 12)
+          x1 = snapped.x
+          y1 = snapped.y
+          if (opts.grid && opts.snap && snapped.x === initX1 + dx && snapped.y === initY1 + dy) {
+            x1 = Math.round(x1 / GRID) * GRID
+            y1 = Math.round(y1 / GRID) * GRID
+          }
+        } else if (handle === 'arrow-end') {
+          x2 = initX2 + dx
+          y2 = initY2 + dy
+          const snapped = snapPointToLayers(x2, y2, others, 12)
+          x2 = snapped.x
+          y2 = snapped.y
+          if (opts.grid && opts.snap && snapped.x === initX2 + dx && snapped.y === initY2 + dy) {
+            x2 = Math.round(x2 / GRID) * GRID
+            y2 = Math.round(y2 / GRID) * GRID
+          }
+        } else if (handle === 'arrow-control') {
+          if (bendType === 'curved') {
+            cx = initCx + 2 * dx
+            cy = initCy + 2 * dy
+          } else {
+            cx = initCx + dx
+            cy = initCy + dy
+          }
+          if (opts.grid && opts.snap) {
+            cx = Math.round(cx / GRID) * GRID
+            cy = Math.round(cy / GRID) * GRID
+          }
+        }
+
+        let finalBendType = bendType
+        if (handle === 'arrow-control' && bendType === 'straight') {
+          finalBendType = 'curved'
+        }
+
+        const xPoints = [x1, x2]
+        const yPoints = [y1, y2]
+        if (finalBendType !== 'straight') {
+          xPoints.push(cx)
+          yPoints.push(cy)
+        }
+        const minX = Math.min(...xPoints)
+        const maxX = Math.max(...xPoints)
+        const minY = Math.min(...yPoints)
+        const maxY = Math.max(...yPoints)
+
+        store.livePatchLayer(layer.id, {
+          transform: {
+            ...layer.transform,
+            x: minX,
+            y: minY,
+            width: Math.max(20, maxX - minX),
+            height: Math.max(20, maxY - minY),
+            rotation: 0,
+            scale: 1,
+          },
+          data: {
+            ...layer.data,
+            bendType: finalBendType,
+            startX: x1,
+            startY: y1,
+            endX: x2,
+            endY: y2,
+            controlX: cx,
+            controlY: cy,
+          }
+        })
+        return
+      }
+
+      if (isArrow && handle === 'move') {
+        const snapped = computeSnap(
+          { ...base, x: base.x + dx, y: base.y + dy },
+          others,
+          project.width,
+          project.height,
+          opts,
+          SNAP_PX / view.zoom,
+        )
+        const finalDx = snapped.x - base.x
+        const finalDy = snapped.y - base.y
+
+        store.livePatchLayer(layer.id, {
+          transform: {
+            ...layer.transform,
+            x: snapped.x,
+            y: snapped.y,
+          },
+          data: {
+            ...layer.data,
+            startX: initX1 + finalDx,
+            startY: initY1 + finalDy,
+            endX: initX2 + finalDx,
+            endY: initY2 + finalDy,
+            controlX: initCx + finalDx,
+            controlY: initCy + finalDy,
+          }
+        })
+        setGuides({ vx: snapped.vx, hy: snapped.hy })
+        return
+      }
+
       let next = applyGesture(base, handle, dx, dy)
       if (handle === 'move') {
         const snapped = computeSnap(
@@ -366,6 +501,8 @@ export function Canvas({ store }: { store: EditorStore }) {
                 layer={layer}
                 zoom={view.zoom}
                 selected={selected.includes(layer.id)}
+                editingArrowTextId={editingArrowTextId}
+                setEditingArrowTextId={setEditingArrowTextId}
                 onStart={startGesture}
                 onUpdate={(patch) => store.patchLayer(layer.id, patch)}
                 onContextMenu={(e) => {
@@ -458,6 +595,8 @@ function LayerBox({
   layer,
   zoom,
   selected,
+  editingArrowTextId,
+  setEditingArrowTextId,
   onStart,
   onUpdate,
   onContextMenu,
@@ -465,15 +604,27 @@ function LayerBox({
   layer: Layer
   zoom: number
   selected: boolean
+  editingArrowTextId: string | null
+  setEditingArrowTextId: (id: string | null) => void
   onStart: (e: React.PointerEvent, layer: Layer, handle: Handle) => void
   onUpdate: (patch: Partial<Layer>) => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
   const t = layer.transform
   const hs = 10 / zoom
+  const isArrow = layer.type === 'arrow'
   // Interactive content (e.g. a selected code block) captures pointer input so
   // it can scroll; it's then moved via the dedicated grip instead of the body.
   const interactive = selected && !!getComponent(layer.type)?.interactive
+
+  const [editMode, setEditMode] = useState<'rect' | 'dots' | 'both'>('rect')
+
+  useEffect(() => {
+    if (!selected) {
+      setEditMode('rect')
+    }
+  }, [selected])
+
   return (
     <div
       className="absolute"
@@ -485,52 +636,169 @@ function LayerBox({
         height: t.height,
         opacity: t.opacity,
         transform: `rotate(${t.rotation}deg) scale(${t.scale})${extraTransform(layer)}`,
-        outline: selected ? `${2 / zoom}px solid ${ACCENT}` : undefined,
+        outline: (selected && (editMode === 'rect' || editMode === 'both')) ? `${2 / zoom}px solid ${ACCENT}` : undefined,
         cursor: layer.locked ? 'default' : 'move',
       }}
       onPointerDown={interactive ? undefined : (e) => onStart(e, layer, 'move')}
+      onDoubleClick={() => {
+        if (isArrow) {
+          setEditMode(editMode === 'rect' ? 'both' : 'rect')
+        }
+      }}
       onContextMenu={onContextMenu}
     >
       <div
         className="h-full w-full"
-        style={{ pointerEvents: interactive ? 'auto' : 'none' }}
+        style={{ pointerEvents: (interactive || isArrow) ? 'auto' : 'none' }}
       >
         <LayerView layer={layer} mode="editor" selected={selected} update={onUpdate} />
       </div>
 
-      {selected && !layer.locked && (
-        <>
-          {/* Move grip (keeps interactive layers movable; easy to grab) */}
-          <div
-            onPointerDown={(e) => onStart(e, layer, 'move')}
-            className="absolute left-1/2 z-10 flex items-center justify-center gap-1 rounded-md border border-black/10 bg-neutral-200 font-medium text-neutral-700 shadow-sm"
-            style={{
-              top: -24 / zoom,
-              height: 18 / zoom,
-              width: 80 / zoom,
-              fontSize: 10 / zoom,
-              transform: 'translateX(-50%)',
-              cursor: 'move',
-            }}
-            title="Drag to move"
-          >
-            ⠿ move
-          </div>
-          {(['nw', 'ne', 'sw', 'se'] as const).map((h) => (
-            <div
-              key={h}
-              onPointerDown={(e) => onStart(e, layer, h)}
-              className="absolute z-10 rounded-full bg-background"
-              style={{ width: hs, height: hs, border: `${1.5 / zoom}px solid ${ACCENT}`, ...handlePos(h) }}
-            />
-          ))}
-          <div
-            onPointerDown={(e) => onStart(e, layer, 'rotate')}
-            className="absolute z-10 rounded-full bg-background"
-            style={{ width: hs, height: hs, left: '50%', top: -32 / zoom, transform: 'translateX(-50%)', cursor: 'grab', border: `${1.5 / zoom}px solid ${ACCENT}` }}
-          />
-        </>
-      )}
+      {selected && !layer.locked && (() => {
+        return (
+          <>
+            {/* Move grip (keeps interactive layers movable; easy to grab) */}
+            {(editMode === 'rect' || editMode === 'both') && (
+              <div
+                onPointerDown={(e) => onStart(e, layer, 'move')}
+                className="absolute left-1/2 z-10 flex items-center justify-center gap-1 rounded-md border border-black/10 bg-neutral-200 font-medium text-neutral-700 shadow-sm"
+                style={{
+                  top: -24 / zoom,
+                  height: 18 / zoom,
+                  width: 80 / zoom,
+                  fontSize: 10 / zoom,
+                  transform: 'translateX(-50%)',
+                  cursor: 'move',
+                }}
+                title="Drag to move"
+              >
+                ⠿ move
+              </div>
+            )}
+
+            {isArrow ? (
+              (editMode === 'dots' || editMode === 'both') && (() => {
+                const bendType = String(layer.data.bendType ?? 'straight')
+                const relX1 = layer.data.startX !== undefined ? (Number(layer.data.startX) - t.x) : 0
+                const relY1 = layer.data.startY !== undefined ? (Number(layer.data.startY) - t.y) : t.height / 2
+                const relX2 = layer.data.endX !== undefined ? (Number(layer.data.endX) - t.x) : t.width
+                const relY2 = layer.data.endY !== undefined ? (Number(layer.data.endY) - t.y) : t.height / 2
+                const relCx = layer.data.controlX !== undefined ? (Number(layer.data.controlX) - t.x) : (relX1 + relX2) / 2
+                const relCy = layer.data.controlY !== undefined ? (Number(layer.data.controlY) - t.y) : (relY1 + relY2) / 2
+
+                const middleX = bendType === 'curved' ? (relX1 + 2 * relCx + relX2) / 4 : relCx
+                const middleY = bendType === 'curved' ? (relY1 + 2 * relCy + relY2) / 4 : relCy
+
+                return (
+                  <>
+                    {/* Emerald dot for arrow start point */}
+                    <div
+                      onPointerDown={(e) => {
+                        setEditMode('dots')
+                        onStart(e, layer, 'arrow-start')
+                      }}
+                      className="absolute z-20 rounded-full shadow bg-emerald-500 hover:bg-emerald-600 transition-colors"
+                      style={{
+                        width: hs * 1.2,
+                        height: hs * 1.2,
+                        left: relX1,
+                        top: relY1,
+                        transform: 'translate(-50%, -50%)',
+                        cursor: 'crosshair',
+                        border: `${1.5 / zoom}px solid #ffffff`,
+                      }}
+                      title="Drag Start Point"
+                    />
+                    {/* Rose dot for arrow end point */}
+                    <div
+                      onPointerDown={(e) => {
+                        setEditMode('dots')
+                        onStart(e, layer, 'arrow-end')
+                      }}
+                      className="absolute z-20 rounded-full shadow bg-rose-500 hover:bg-rose-600 transition-colors"
+                      style={{
+                        width: hs * 1.2,
+                        height: hs * 1.2,
+                        left: relX2,
+                        top: relY2,
+                        transform: 'translate(-50%, -50%)',
+                        cursor: 'crosshair',
+                        border: `${1.5 / zoom}px solid #ffffff`,
+                      }}
+                      title="Drag End Point"
+                    />
+                    {/* Sky Blue dot for bend point */}
+                    <div
+                      onPointerDown={(e) => {
+                        setEditMode('dots')
+                        onStart(e, layer, 'arrow-control')
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation()
+                        setEditingArrowTextId(layer.id)
+                      }}
+                      className="absolute z-20 rounded-full shadow bg-sky-500 hover:bg-sky-600 transition-colors"
+                      style={{
+                        width: hs * 1.2,
+                        height: hs * 1.2,
+                        left: middleX,
+                        top: middleY,
+                        transform: 'translate(-50%, -50%)',
+                        cursor: 'crosshair',
+                        border: `${1.5 / zoom}px solid #ffffff`,
+                      }}
+                      title="Double-click to add label"
+                    />
+
+                    {/* Inline typography editor overlay */}
+                    {editingArrowTextId === layer.id && (
+                      <input
+                        autoFocus
+                        className="absolute z-30 rounded border border-neutral-300 bg-background px-2 py-0.5 text-xs shadow-lg text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        style={{
+                          left: middleX,
+                          top: middleY - 24 / zoom,
+                          transform: 'translate(-50%, -50%)',
+                          width: '120px',
+                          textAlign: 'center',
+                        }}
+                        value={String(layer.data.text ?? '')}
+                        onChange={(e) => store.patchLayer(layer.id, { data: { ...layer.data, text: e.target.value } })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === 'Escape') {
+                            setEditingArrowTextId(null)
+                          }
+                        }}
+                        onBlur={() => setEditingArrowTextId(null)}
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                      />
+                    )}
+                  </>
+                )
+              })()
+            ) : (
+              (editMode === 'rect' || editMode === 'both') && (
+                <>
+                  {(['nw', 'ne', 'sw', 'se'] as const).map((h) => (
+                    <div
+                      key={h}
+                      onPointerDown={(e) => onStart(e, layer, h)}
+                      className="absolute z-10 rounded-full bg-background"
+                      style={{ width: hs, height: hs, border: `${1.5 / zoom}px solid ${ACCENT}`, ...handlePos(h) }}
+                    />
+                  ))}
+                  <div
+                    onPointerDown={(e) => onStart(e, layer, 'rotate')}
+                    className="absolute z-10 rounded-full bg-background"
+                    style={{ width: hs, height: hs, left: '50%', top: -32 / zoom, transform: 'translateX(-50%)', cursor: 'grab', border: `${1.5 / zoom}px solid ${ACCENT}` }}
+                  />
+                </>
+              )
+            )}
+          </>
+        )
+      })()}
     </div>
   )
 }
@@ -797,4 +1065,48 @@ function ContextMenu({
 
 function clamp(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v
+}
+
+function snapPointToLayers(
+  x: number,
+  y: number,
+  layers: Layer[],
+  threshold = 12,
+): { x: number; y: number } {
+  let snappedX = x
+  let snappedY = y
+  let minDiffX = threshold
+  let minDiffY = threshold
+  
+  for (const l of layers) {
+    if (l.hidden) continue
+    const lt = l.transform
+    const left = lt.x
+    const right = lt.x + lt.width
+    const top = lt.y
+    const bottom = lt.y + lt.height
+    const cx = lt.x + lt.width / 2
+    const cy = lt.y + lt.height / 2
+    
+    // Check vertical edges and center (snap x)
+    const xCandidates = [left, cx, right]
+    for (const cand of xCandidates) {
+      const diff = Math.abs(x - cand)
+      if (diff < minDiffX && y >= top - threshold && y <= bottom + threshold) {
+        minDiffX = diff
+        snappedX = cand
+      }
+    }
+    
+    // Check horizontal edges and center (snap y)
+    const yCandidates = [top, cy, bottom]
+    for (const cand of yCandidates) {
+      const diff = Math.abs(y - cand)
+      if (diff < minDiffY && x >= left - threshold && x <= right + threshold) {
+        minDiffY = diff
+        snappedY = cand
+      }
+    }
+  }
+  return { x: snappedX, y: snappedY }
 }

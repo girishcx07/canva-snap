@@ -56,7 +56,7 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
 
   return (
     <>
-      <Section title={`${def?.label ?? layer.type} · ${layer.name}`}>
+      <Section title={def?.label && def.label !== layer.name ? `${def.label} · ${layer.name}` : layer.name}>
         <Row>
           <Num label="X" value={layer.transform.x} onChange={(v) => store.patchTransform(layer.id, { x: v })} />
           <Num label="Y" value={layer.transform.y} onChange={(v) => store.patchTransform(layer.id, { y: v })} />

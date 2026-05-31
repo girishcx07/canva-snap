@@ -125,6 +125,16 @@ export class EditorStore {
     this.emit()
   }
 
+  livePatchLayer = (layerId: ID, patch: Partial<Layer>) => {
+    this.state.project = doc.patchLayer(
+      this.state.project,
+      this.state.currentSlideId,
+      layerId,
+      patch,
+    )
+    this.emit()
+  }
+
   commitTransaction = () => {
     if (this.txnStart && this.txnStart !== this.state.project) {
       this.past.push(this.txnStart)
