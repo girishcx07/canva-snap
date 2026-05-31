@@ -187,6 +187,17 @@ export class EditorStore {
       ),
     )
 
+  reorderAnimation = (layerId: ID, toIndex: number) =>
+    this.commit(
+      doc.reorderAnimation(
+        this.state.project,
+        this.state.currentSlideId,
+        layerId,
+        toIndex,
+      ),
+    )
+
+
   // --- Slide commands ---
   addSlide = () => {
     const next = doc.addSlide(this.state.project, this.state.currentSlideId)

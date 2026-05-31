@@ -283,6 +283,35 @@ export function patchProject(
   return touch({ ...project, ...patch })
 }
 
+export function reorderAnimation(
+  project: Project,
+  slideId: ID,
+  layerId: ID,
+  toIndex: number,
+): Project {
+  return updateSlide(project, slideId, (slide) => {
+    const order = slide.animationOrder
+      ? [...slide.animationOrder]
+      : slide.layers.map((l) => l.id)
+    
+    for (const l of slide.layers) {
+      if (!order.includes(l.id)) {
+        order.push(l.id)
+      }
+    }
+
+    const from = order.indexOf(layerId)
+    if (from < 0) return slide
+    
+    order.splice(from, 1)
+    const clampedIndex = Math.max(0, Math.min(toIndex, order.length))
+    order.splice(clampedIndex, 0, layerId)
+    
+    return { ...slide, animationOrder: order }
+  })
+}
+
 function touch(project: Project): Project {
   return { ...project, updatedAt: new Date().toISOString() }
 }
+

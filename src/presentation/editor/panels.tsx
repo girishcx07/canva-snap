@@ -393,31 +393,20 @@ export function AnimationsPanel({ store }: PanelProps) {
                 Animation Parameters
               </span>
 
-              {/* Trigger Toggle */}
+              {/* Trigger Dropdown */}
               <div className="flex flex-col gap-1 text-[10px]">
-                <span className="text-muted-foreground font-medium">Animate On</span>
-                <div className="flex bg-muted p-0.5 rounded-lg border">
-                  <button
-                    onClick={() => patchAnimationField('trigger', 'slide-enter')}
-                    className={`flex-1 py-1 text-center rounded-md font-semibold transition ${
-                      currentAnim.trigger === 'slide-enter'
-                        ? 'bg-background text-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    On Enter
-                  </button>
-                  <button
-                    onClick={() => patchAnimationField('trigger', 'slide-exit')}
-                    className={`flex-1 py-1 text-center rounded-md font-semibold transition ${
-                      currentAnim.trigger === 'slide-exit'
-                        ? 'bg-background text-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    On Exit
-                  </button>
-                </div>
+                <span className="text-muted-foreground font-medium">Animate On (Trigger)</span>
+                <select
+                  value={currentAnim.trigger}
+                  onChange={(e) => patchAnimationField('trigger', e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
+                >
+                  <option value="slide-enter">On Enter (Slide Start)</option>
+                  <option value="slide-exit">On Exit (Slide End)</option>
+                  <option value="click">On Click (Step Trigger)</option>
+                  <option value="with-previous">With Previous (Simultaneous)</option>
+                  <option value="after-previous">After Previous (Sequential)</option>
+                </select>
               </div>
 
               {/* Direction Toggle (Only for Draw Preset) */}
