@@ -70,6 +70,7 @@ export type AnimationInstance = {
   durationMs: number
   easing: EasingName
   repeat: number
+  direction?: 'forward' | 'backward'
 }
 
 // Events --------------------------------------------------------------------

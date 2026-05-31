@@ -119,6 +119,7 @@ export function sampleAt(
     }
 
     const frame = sampleKeyframes(preset.keyframes, p)
+    frame.progress = p
     out[s.layerId] = compose(out[s.layerId] ?? REST, frame)
   }
 
@@ -151,6 +152,7 @@ export function sampleStepsAt(
       }
 
       const frame = sampleKeyframes(preset.keyframes, p)
+      frame.progress = p
       out[s.layerId] = compose(out[s.layerId] ?? REST, frame)
     }
   }
@@ -165,5 +167,6 @@ function compose(a: SampledFrame, b: SampledFrame): SampledFrame {
     rotation: a.rotation + b.rotation,
     scale: a.scale * b.scale,
     opacity: a.opacity * b.opacity,
+    progress: b.progress !== undefined ? b.progress : a.progress,
   }
 }

@@ -31,6 +31,7 @@ import { defaultTransform, uid } from './doc'
 import type { Layer, LayerStyle, Transform } from './types'
 import { CodeBlock, type CodeBlockData } from './components/code-block'
 import { codeLanguages } from '@/lib/code-highlighter'
+import type { SampledFrame } from './engine/animation'
 
 export type ComponentCategory =
   | 'text'
@@ -66,6 +67,7 @@ export type ComponentDefinition = {
     mode: RenderMode
     selected?: boolean
     update?: (patch: Partial<Layer>) => void
+    frame?: SampledFrame
   }) => ReactNode
 }
 
@@ -115,15 +117,17 @@ export function LayerView({
   mode,
   selected,
   update,
+  frame,
 }: {
   layer: Layer
   mode: RenderMode
   selected?: boolean
   update?: (patch: Partial<Layer>) => void
+  frame?: SampledFrame
 }) {
   const def = getComponent(layer.type)
   if (!def) return null
-  return <>{def.render({ layer, mode, selected, update })}</>
+  return <>{def.render({ layer, mode, selected, update, frame })}</>
 }
 
 // Uncontrolled rich-text contentEditable. Stores HTML; shows a floating
@@ -514,22 +518,188 @@ registerComponent({
   defaultData: () => ({}),
   defaultTransform: () => ({ width: 220, height: 40 }),
   defaultStyle: () => ({ color: '#ffffff', borderWidth: 4 }),
-  render: ({ layer }) => {
+  render: ({ layer, mode, frame }) => {
     const w = layer.transform.width
     const h = layer.transform.height
     const c = layer.style.color ?? '#ffffff'
     const sw = layer.style.borderWidth ?? 4
-    return (
-      <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
-        <line x1={0} y1={h / 2} x2={w - 14} y2={h / 2} stroke={c} strokeWidth={sw} strokeLinecap="round" />
-        <polygon
-          points={`${w - 16},${h / 2 - 9} ${w},${h / 2} ${w - 16},${h / 2 + 9}`}
-          fill={c}
-        />
-      </svg>
+
+    // Check if there is an active draw animation configured
+    const anim = layer.animations.find(
+      (a) => a.presetId === 'draw'
     )
-  },
+    
+    // Determine direction and exit status
+    const direction = anim?.direction ?? 'forward'
+    const isExit = anim?.trigger === 'slide-exit'
+    const duration = anim?.durationMs ?? 800
+    const delay = anim?.delayMs ?? 0
+    const easing = anim?.easing ?? 'easeOut'
+    
+    // Calculate length of the arrow line
+    const length = Math.max(0, w - 14)
+    
+    // Default values (fully drawn)
+    let strokeDasharray: string | undefined = undefined
+    let strokeDashoffset: number | undefined = undefined
+    let headScale = 1
+    
+    if (mode === 'present' && anim) {
+      const progress = frame?.progress ?? 0
+      
+      strokeDasharray = `${length}`
+      if (!isExit) {
+        // Entrance animation
+        if (direction === 'forward') {
+          strokeDashoffset = length * (1 - progress)
+          // Scale head from 0 to 1 at the end (last 30% of progress)
+          headScale = progress < 0.7 ? 0 : (progress - 0.7) / 0.3
+        } else {
+          // Backward
+          strokeDashoffset = -length * (1 - progress)
+          // Scale head immediately at start (first 30% of progress)
+          headScale = Math.min(1, progress / 0.3)
+        }
+      } else {
+        // Exit animation
+        if (direction === 'forward') {
+          strokeDashoffset = length * progress
+          // Head scales down immediately (first 30% of progress)
+          headScale = Math.max(0, 1 - progress / 0.3)
+        } else {
+          // Backward
+          strokeDashoffset = -length * progress
+          // Head scales down at the end (last 30% of progress)
+          headScale = progress > 0.7 ? 0 : (0.7 - progress) / 0.7
+        }
+      }
+    }
+    
+    // CSS-based preview class handling
+    const isPreview = anim && mode === 'editor' && typeof window !== 'undefined' && 
+      (window as any)._previewingArrowId === layer.id
+      
+    const animClass = isPreview
+      ? `animate-draw-${isExit ? 'exit-' : ''}${direction}`
+      : ''
+      
+    const easingCss = easing === 'linear' ? 'linear' :
+                     easing === 'easeIn' ? 'ease-in' :
+                     easing === 'easeOut' ? 'ease-out' :
+                     easing === 'easeInOut' ? 'ease-in-out' : 'ease-out'
+                     
+    const styleVariables: React.CSSProperties = isPreview ? {
+      '--arrow-length': `${length}px`,
+      '--duration': `${duration}ms`,
+      '--delay': `${delay}ms`,
+      '--easing': easingCss,
+    } as any : {}
+
+    return (
+      <div className="relative w-full h-full" style={styleVariables}>
+        {isPreview && (
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes draw-forward-kf {
+              from { stroke-dashoffset: var(--arrow-length); }
+              to { stroke-dashoffset: 0; }
+            }
+            @keyframes draw-backward-kf {
+              from { stroke-dashoffset: calc(-1 * var(--arrow-length)); }
+              to { stroke-dashoffset: 0; }
+            }
+            @keyframes draw-exit-forward-kf {
+              from { stroke-dashoffset: 0; }
+              to { stroke-dashoffset: var(--arrow-length); }
+            }
+            @keyframes draw-exit-backward-kf {
+              from { stroke-dashoffset: 0; }
+              to { stroke-dashoffset: calc(-1 * var(--arrow-length)); }
+            }
+            @keyframes draw-head-enter-kf {
+              0%, 70% { transform: scale(0); opacity: 0; }
+              100% { transform: scale(1); opacity: 1; }
+            }
+            @keyframes draw-head-enter-backward-kf {
+              0% { transform: scale(0); opacity: 0; }
+              30%, 100% { transform: scale(1); opacity: 1; }
+            }
+            @keyframes draw-head-exit-kf {
+              0%, 30% { transform: scale(1); opacity: 1; }
+              100% { transform: scale(0); opacity: 0; }
+            }
+            @keyframes draw-head-exit-backward-kf {
+              0% { transform: scale(1); opacity: 1; }
+              70%, 100% { transform: scale(0); opacity: 0; }
+            }
+            
+            .animate-draw-forward line {
+              stroke-dasharray: var(--arrow-length);
+              stroke-dashoffset: var(--arrow-length);
+              animation: draw-forward-kf var(--duration) var(--easing) var(--delay) forwards;
+            }
+            .animate-draw-forward polygon {
+              transform-origin: right center;
+              animation: draw-head-enter-kf var(--duration) var(--easing) var(--delay) forwards;
+            }
+            
+            .animate-draw-backward line {
+              stroke-dasharray: var(--arrow-length);
+              stroke-dashoffset: calc(-1 * var(--arrow-length));
+              animation: draw-backward-kf var(--duration) var(--easing) var(--delay) forwards;
+            }
+            .animate-draw-backward polygon {
+              transform-origin: right center;
+              animation: draw-head-enter-backward-kf var(--duration) var(--easing) var(--delay) forwards;
+            }
+            
+            .animate-draw-exit-forward line {
+              stroke-dasharray: var(--arrow-length);
+              stroke-dashoffset: 0;
+              animation: draw-exit-forward-kf var(--duration) var(--easing) var(--delay) forwards;
+            }
+            .animate-draw-exit-forward polygon {
+              transform-origin: right center;
+              animation: draw-head-exit-kf var(--duration) var(--easing) var(--delay) forwards;
+            }
+            
+            .animate-draw-exit-backward line {
+              stroke-dasharray: var(--arrow-length);
+              stroke-dashoffset: 0;
+              animation: draw-exit-backward-kf var(--duration) var(--easing) var(--delay) forwards;
+            }
+            .animate-draw-exit-backward polygon {
+              transform-origin: right center;
+              animation: draw-head-exit-backward-kf var(--duration) var(--easing) var(--delay) forwards;
+            }
+          `}} />
+        )}
+        <svg width="100%" height="100%" style={{ overflow: 'visible' }} className={animClass}>
+          <line
+            x1={0}
+            y1={h / 2}
+            x2={w - 14}
+            y2={h / 2}
+            stroke={c}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeDasharray={strokeDasharray}
+            strokeDashoffset={strokeDashoffset}
+          />
+          <polygon
+            points={`${w - 16},${h / 2 - 9} ${w},${h / 2} ${w - 16},${h / 2 + 9}`}
+            fill={c}
+            style={{
+              transform: `scale(${headScale})`,
+              transformOrigin: 'right center',
+              transition: isPreview ? undefined : 'transform 50ms linear',
+            }}
+          />
+        </svg>
+      </div>
+    )
+  }
 })
+
 
 registerComponent({
   type: 'browser',

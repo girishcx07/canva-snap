@@ -366,7 +366,10 @@ export function AnimationsPanel({ store }: PanelProps) {
               <Activity className="size-3.5 text-primary" /> General Animations
             </span>
             <div className="grid grid-cols-3 gap-2">
-              {['fade', 'rise', 'pan', 'pop', 'wipe', 'drift', 'tectonic', 'baseline', 'stomp', 'scrapbook', 'neon', 'bounce-in'].map((pid) => {
+              {(layer?.type === 'arrow'
+                ? ['draw', 'fade', 'rise', 'pan', 'pop', 'wipe', 'drift', 'tectonic', 'baseline', 'stomp', 'scrapbook', 'neon', 'bounce-in']
+                : ['fade', 'rise', 'pan', 'pop', 'wipe', 'drift', 'tectonic', 'baseline', 'stomp', 'scrapbook', 'neon', 'bounce-in']
+              ).map((pid) => {
                 const p = getPreset(pid);
                 if (!p) return null;
                 return (
@@ -416,6 +419,35 @@ export function AnimationsPanel({ store }: PanelProps) {
                   </button>
                 </div>
               </div>
+
+              {/* Direction Toggle (Only for Draw Preset) */}
+              {currentAnim.presetId === 'draw' && (
+                <div className="flex flex-col gap-1 text-[10px]">
+                  <span className="text-muted-foreground font-medium">Draw Direction</span>
+                  <div className="flex bg-muted p-0.5 rounded-lg border">
+                    <button
+                      onClick={() => patchAnimationField('direction', 'forward')}
+                      className={`flex-1 py-1 text-center rounded-md font-semibold transition ${
+                        (currentAnim.direction ?? 'forward') === 'forward'
+                          ? 'bg-background text-foreground shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Forward
+                    </button>
+                    <button
+                      onClick={() => patchAnimationField('direction', 'backward')}
+                      className={`flex-1 py-1 text-center rounded-md font-semibold transition ${
+                        currentAnim.direction === 'backward'
+                          ? 'bg-background text-foreground shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Backward
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Speed Slider */}
               <div className="flex flex-col gap-1 text-[10px]">

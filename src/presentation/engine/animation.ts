@@ -18,6 +18,7 @@ export type SampledFrame = {
   rotation: number
   scale: number
   opacity: number
+  progress?: number
 }
 
 const REST: SampledFrame = { x: 0, y: 0, rotation: 0, scale: 1, opacity: 1 }
@@ -54,6 +55,10 @@ export const ANIMATION_PRESETS: AnimationPreset[] = [
   ]),
 
   // --- Canva General Presets ---
+  preset('draw', 'Draw', 'entrance', 800, [
+    { offset: 0, transform: {} },
+    { offset: 1, transform: {} },
+  ]),
   preset('rise', 'Rise', 'entrance', 600, [
     { offset: 0, transform: { y: 60, opacity: 0 } },
     { offset: 1, transform: { y: 0, opacity: 1 } },
@@ -214,7 +219,7 @@ export function sampleKeyframes(keyframes: Keyframe[], p: number): SampledFrame 
   }
   const span = upper.offset - lower.offset || 1
   const local = (p - lower.offset) / span
-  const field = (key: keyof SampledFrame) => {
+  const field = (key: Exclude<keyof SampledFrame, 'progress'>) => {
     const a = lower.transform[key] ?? REST[key]
     const b = upper.transform[key] ?? REST[key]
     return lerp(a, b, local)

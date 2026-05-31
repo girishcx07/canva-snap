@@ -337,7 +337,7 @@ function RenderedLayer({
         pointerEvents: onClick ? 'auto' : 'none',
       }}
     >
-      <LayerView layer={layer} mode="present" />
+      <LayerView layer={layer} mode="present" frame={frame} />
     </div>
   )
 }

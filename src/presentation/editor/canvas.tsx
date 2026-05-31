@@ -136,7 +136,17 @@ export function Canvas({ store }: { store: EditorStore }) {
   // Preview an animation on the canvas when a preset is hovered in the panel.
   const preview = useEditorStore(store, (s) => s.preview)
   useEffect(() => {
-    if (!preview) return
+    if (!preview) {
+      if (typeof window !== 'undefined') (window as any)._previewingArrowId = null
+      return
+    }
+    if (typeof window !== 'undefined') {
+      if (preview.presetId === 'draw') {
+        ;(window as any)._previewingArrowId = preview.layerId
+      } else {
+        ;(window as any)._previewingArrowId = null
+      }
+    }
     const node = wrapRef.current?.querySelector(
       `[data-layer-id="${preview.layerId}"]`,
     ) as HTMLElement | null
@@ -147,7 +157,10 @@ export function Canvas({ store }: { store: EditorStore }) {
       return { offset: o, transform: c.transform, opacity: c.opacity }
     })
     const anim = node.animate(frames, { duration: p.defaultDurationMs, easing: 'ease' })
-    return () => anim.cancel()
+    return () => {
+      if (typeof window !== 'undefined') (window as any)._previewingArrowId = null
+      anim.cancel()
+    }
   }, [preview])
 
   // Global copy-paste keyboard listener
