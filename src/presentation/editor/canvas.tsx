@@ -950,6 +950,7 @@ function applyGesture(
     case 'rotate':
       return { rotation: base.rotation + dx }
   }
+  return {}
 }
 
 function computeSnap(
