@@ -91,8 +91,8 @@ export type Template = {
 
 // Blank is the default; the Flexbox sample is the showcase template.
 export const TEMPLATES: Template[] = [
+  { id: 'flexbox', label: 'CSS 3D Engine', build: createSampleProject },
   { id: 'blank', label: 'Blank', build: createBlankProject },
-  { id: 'flexbox', label: 'CSS Flexbox', build: createSampleProject },
   { id: 'redux-flow', label: 'React/Redux Flow', build: reduxFlowProject },
   { id: 'css-grid', label: 'CSS Grid', build: cssGridProject },
   { id: 'bst', label: 'BST Insertion', build: bstProject },

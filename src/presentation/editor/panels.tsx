@@ -1312,13 +1312,35 @@ type OpenverseImage = {
 };
 const imageCache = new Map<string, OpenverseImage[]>();
 
+const FALLBACK_IMAGES: OpenverseImage[] = [
+  { id: 'fb1', url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=400&q=80', title: 'Developer Workspace' },
+  { id: 'fb2', url: 'https://images.unsplash.com/photo-1587831990711-23ca6441447b?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1587831990711-23ca6441447b?auto=format&fit=crop&w=400&q=80', title: 'Multi-Monitor Desk' },
+  { id: 'fb3', url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=400&q=80', title: 'Software Engineering' },
+  { id: 'fb4', url: 'https://images.unsplash.com/photo-1561070791-26c113006238?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1561070791-26c113006238?auto=format&fit=crop&w=400&q=80', title: 'Creative Palette' },
+  { id: 'fb5', url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?auto=format&fit=crop&w=400&q=80', title: 'Vibrant Paint Gradient' },
+  { id: 'fb6', url: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=400&q=80', title: 'Sunlit Office' },
+  { id: 'fb7', url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=400&q=80', title: 'Retro Gamer Desk' },
+  { id: 'fb8', url: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=400&q=80', title: 'Minimal Workspace' },
+  { id: 'fb9', url: 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&w=400&q=80', title: 'Product UI Design' },
+  { id: 'fb10', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80', title: '3D Abstract Shapes' },
+  { id: 'fb11', url: 'https://images.unsplash.com/photo-1607799279861-4dd421887fb3?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1607799279861-4dd421887fb3?auto=format&fit=crop&w=400&q=80', title: 'Dark Mode Programming' },
+  { id: 'fb12', url: 'https://images.unsplash.com/photo-1586717791821-3f44a563fa4c?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1586717791821-3f44a563fa4c?auto=format&fit=crop&w=400&q=80', title: 'UI Design System' },
+  { id: 'fb13', url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=400&q=80', title: 'Premium Audio Gear' },
+  { id: 'fb14', url: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=400&q=80', title: 'Mobile App Mockups' },
+  { id: 'fb15', url: 'https://images.unsplash.com/photo-1531538606174-0f90ff5dce83?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1531538606174-0f90ff5dce83?auto=format&fit=crop&w=400&q=80', title: 'Brainstorm Whiteboard' },
+  { id: 'fb16', url: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=400&q=80', title: 'Indigo Gradient' },
+  { id: 'fb17', url: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=400&q=80', title: 'Cyberpunk Game Room' },
+  { id: 'fb18', url: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&w=400&q=80', title: 'Clean Development Terminal' },
+  { id: 'fb19', url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=400&q=80', title: 'Creative Conference Desk' },
+  { id: 'fb20', url: 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?auto=format&fit=crop&w=800&q=80', thumbnail: 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?auto=format&fit=crop&w=400&q=80', title: 'UI Designing on Tablet' },
+];
+
 export function ImagesPanel({ store }: PanelProps) {
   const [q, setQ] = useState("");
   const [imgs, setImgs] = useState<OpenverseImage[]>([]);
 
   useEffect(() => {
-    const query = q.trim();
-    if (!query) return setImgs([]);
+    const query = q.trim() || "workspace";
     if (imageCache.has(query)) return setImgs(imageCache.get(query)!);
     const id = setTimeout(async () => {
       try {
@@ -1326,21 +1348,23 @@ export function ImagesPanel({ store }: PanelProps) {
           `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&page_size=20`,
         );
         const j = (await r.json()) as { results?: OpenverseImage[] };
-        imageCache.set(query, j.results ?? []);
-        setImgs(j.results ?? []);
+        const results = j.results && j.results.length > 0 ? j.results : FALLBACK_IMAGES;
+        imageCache.set(query, results);
+        setImgs(results);
       } catch {
-        setImgs([]);
+        imageCache.set(query, FALLBACK_IMAGES);
+        setImgs(FALLBACK_IMAGES);
       }
-    }, 350);
+    }, q.trim() === "" ? 0 : 350);
     return () => clearTimeout(id);
   }, [q]);
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
       <SearchField value={q} onChange={setQ} placeholder="Search images" />
-      {imgs.length === 0 && (
+      {imgs.length === 0 && q.trim() !== "" && (
         <p className="px-1 text-xs text-muted-foreground">
-          Search free images from Openverse.
+          No images found. Search free images from Openverse.
         </p>
       )}
       <div className="grid grid-cols-2 gap-1.5 overflow-auto">

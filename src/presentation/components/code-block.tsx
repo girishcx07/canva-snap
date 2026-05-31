@@ -107,23 +107,7 @@ export type CodeBlockData = {
   activeFile?: number
 }
 
-// ---------------------------------------------------------------------------
-// File-type icon mapping (text-based, no extra deps)
-// ---------------------------------------------------------------------------
 
-const EXT_ICON: Record<string, string> = {
-  ts: 'TS', tsx: 'TSX', js: 'JS', jsx: 'JSX',
-  py: 'PY', rb: 'RB', go: 'GO', rs: 'RS',
-  css: 'CSS', scss: 'SCSS', html: 'HTML',
-  json: 'JSON', yaml: 'YML', toml: 'TOML',
-  md: 'MD', sh: 'SH', bash: 'SH',
-  c: 'C', cpp: 'C++', java: 'JV',
-}
-
-function fileIcon(name: string): string | null {
-  const ext = name.split('.').pop()?.toLowerCase() ?? ''
-  return EXT_ICON[ext] ?? null
-}
 
 function getThemeDefaults(theme: CodeTheme): { bg: string; fg: string; isLight: boolean } {
   switch (theme) {
@@ -293,15 +277,25 @@ export function CodeBlock({
   }, [syncScroll, editable, file.code])
 
   useEffect(() => {
+    if (data.activeFile !== undefined && data.activeFile !== tab) {
+      setTab(data.activeFile)
+    }
+  }, [data.activeFile, tab])
+
+  useEffect(() => {
     if (editable && textareaRef.current) {
-      if (document.activeElement !== textareaRef.current) {
+      const activeEl = document.activeElement
+      if (activeEl && activeEl !== textareaRef.current && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        return
+      }
+      if (activeEl !== textareaRef.current) {
         const startPos = textareaRef.current.selectionStart
         const endPos = textareaRef.current.selectionEnd
         textareaRef.current.focus()
         textareaRef.current.setSelectionRange(startPos, endPos)
       }
     }
-  }, [editable, active, file.code])
+  })
 
   // --- Entry reveal animation (within a slide) ---
   const typing = mode === 'present' && data.reveal === 'typing'
@@ -595,7 +589,6 @@ export function CodeBlock({
  
             <div className="flex items-stretch gap-0 select-none h-full">
               {visibleFiles.map((f, i) => {
-                const icon = fileIcon(f.name)
                 const isActive = i === active
                 const tabBg = isActive ? bgColor : 'transparent'
                 const tabFg = isActive ? fgColor : (themeIsLight ? '#6a737d' : '#959da5')
@@ -620,35 +613,7 @@ export function CodeBlock({
                       zIndex: isActive ? 2 : 1,
                     }}
                   >
-                    {icon && (
-                      <span
-                        className="text-[9px] font-bold px-1.5 py-0.5 rounded select-none shrink-0"
-                        style={{
-                          backgroundColor:
-                            icon === 'TS' || icon === 'TSX'
-                              ? 'rgba(0,122,204,0.15)'
-                              : icon === 'JS' || icon === 'JSX'
-                                ? 'rgba(247,223,30,0.15)'
-                                : icon === 'CSS' || icon === 'SCSS'
-                                  ? 'rgba(86,61,124,0.15)'
-                                  : icon === 'HTML'
-                                    ? 'rgba(227,79,38,0.15)'
-                                    : 'rgba(128,128,128,0.15)',
-                          color:
-                            icon === 'TS' || icon === 'TSX'
-                              ? '#007acc'
-                              : icon === 'JS' || icon === 'JSX'
-                                ? '#d4b000'
-                                : icon === 'CSS' || icon === 'SCSS'
-                                  ? '#b388ff'
-                                  : icon === 'HTML'
-                                    ? '#e34f26'
-                                    : '#a0a0a0',
-                        }}
-                      >
-                        {icon}
-                      </span>
-                    )}
+
                     {editor && isActive && onChangeTitle ? (
                       <input
                         className="bg-transparent text-[11px] outline-none w-20 text-left font-medium"

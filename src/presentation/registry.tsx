@@ -335,7 +335,7 @@ registerComponent({
                   ? (layer.style.borderRadius ?? 16)
                   : 0,
           clipPath: clip,
-          boxShadow: layer.style.shadow,
+          boxShadow: layer.style.shadow ?? layer.style.boxShadow ?? (layer.data.boxShadow as string | undefined),
         }}
       />
     )
@@ -443,11 +443,16 @@ registerComponent({
       options: codeLanguages.map((l) => ({ label: l, value: l })),
     },
   ],
-  render: ({ layer, mode, selected, update, frame }) => (
-    <CodeBlock
-      data={layer.data as CodeBlockData}
-      className="h-full w-full"
-      mode={mode}
+  render: ({ layer, mode, selected, update, frame }) => {
+    const dataWithShadow = {
+      ...layer.data,
+      boxShadow: layer.data.boxShadow ?? layer.style.boxShadow ?? layer.style.shadow
+    } as CodeBlockData
+    return (
+      <CodeBlock
+        data={dataWithShadow}
+        className="h-full w-full"
+        mode={mode}
       interactive={mode === 'editor' && !!selected}
       onChange={
         update
@@ -557,7 +562,8 @@ registerComponent({
       fromCode={(frame as any)?.fromCode}
       animProgress={(frame as any)?.animProgress}
     />
-  ),
+    )
+  },
 })
 registerComponent({
   type: 'container',
@@ -747,6 +753,18 @@ registerComponent({
     const maskId = `arrow-mask-${layer.id}`
     const dottedMaskId = `arrow-mask-dotted-${layer.id}`
 
+    const textStr = String(layer.data.text ?? '')
+    const isEditing = typeof window !== 'undefined' && (window as any)._editingArrowId === layer.id
+    const hasGap = textStr !== '' || isEditing
+    const textWidth = Math.max(60, textStr.length * 8 + 16)
+
+    const sloppiness = Number(layer.data.sloppiness ?? 0)
+    const filterId = sloppiness === 1 ? `url(#hand-drawn-artist-${layer.id})` :
+                     sloppiness === 2 ? `url(#hand-drawn-cartoon-${layer.id})` : undefined
+
+    const arrowhead = String(layer.data.arrowhead ?? 'arrow')
+    const showArrowhead = arrowhead !== 'none'
+
     // Compute midpoint coordinate for label typography positioning
     const middleX = bendType === 'curved' ? (relX1 + 2 * relCx + relX2) / 4 : relCx
     const middleY = bendType === 'curved' ? (relY1 + 2 * relCy + relY2) / 4 : relCy
@@ -881,44 +899,75 @@ registerComponent({
           `}} />
         )}
         <svg width="100%" height="100%" style={{ overflow: 'visible' }} className={animClass}>
-          {hasOverlap && (
-            <defs>
-              <mask id={maskId}>
-                <rect x="-5000" y="-5000" width="10000" height="10000" fill="white" />
-                {otherLayers.map((ol) => {
-                  const localX = ol.transform.x - layer.transform.x
-                  const localY = ol.transform.y - layer.transform.y
-                  return (
-                    <rect
-                      key={ol.id}
-                      x={localX}
-                      y={localY}
-                      width={ol.transform.width}
-                      height={ol.transform.height}
-                      fill="black"
-                    />
-                  )
-                })}
-              </mask>
-              <mask id={dottedMaskId}>
-                <rect x="-5000" y="-5000" width="10000" height="10000" fill="black" />
-                {otherLayers.map((ol) => {
-                  const localX = ol.transform.x - layer.transform.x
-                  const localY = ol.transform.y - layer.transform.y
-                  return (
-                    <rect
-                      key={ol.id}
-                      x={localX}
-                      y={localY}
-                      width={ol.transform.width}
-                      height={ol.transform.height}
-                      fill="white"
-                    />
-                  )
-                })}
-              </mask>
-            </defs>
-          )}
+          <defs>
+            {/* Unified mask for solid line (contains overlap cuts and text gap cut) */}
+            <mask id={maskId}>
+              <rect x="-5000" y="-5000" width="10000" height="10000" fill="white" />
+              {hasGap && (
+                <rect
+                  x={middleX - textWidth / 2}
+                  y={middleY - 12}
+                  width={textWidth}
+                  height={24}
+                  fill="black"
+                  rx="4"
+                />
+              )}
+              {hasOverlap && otherLayers.map((ol) => {
+                const localX = ol.transform.x - layer.transform.x
+                const localY = ol.transform.y - layer.transform.y
+                return (
+                  <rect
+                    key={ol.id}
+                    x={localX}
+                    y={localY}
+                    width={ol.transform.width}
+                    height={ol.transform.height}
+                    fill="black"
+                  />
+                )
+              })}
+            </mask>
+
+            {/* Dotted mask (only shows inside overlapping elements and NOT in the text gap) */}
+            <mask id={dottedMaskId}>
+              <rect x="-5000" y="-5000" width="10000" height="10000" fill="black" />
+              {hasOverlap && otherLayers.map((ol) => {
+                const localX = ol.transform.x - layer.transform.x
+                const localY = ol.transform.y - layer.transform.y
+                return (
+                  <rect
+                    key={ol.id}
+                    x={localX}
+                    y={localY}
+                    width={ol.transform.width}
+                    height={ol.transform.height}
+                    fill="white"
+                  />
+                )
+              })}
+              {hasGap && (
+                <rect
+                  x={middleX - textWidth / 2}
+                  y={middleY - 12}
+                  width={textWidth}
+                  height={24}
+                  fill="black"
+                  rx="4"
+                />
+              )}
+            </mask>
+
+            {/* Hand-drawn sloppiness filters */}
+            <filter id={`hand-drawn-artist-${layer.id}`} x="-20%" y="-20%" width="140%" height="140%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="3" result="noise" />
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+            <filter id={`hand-drawn-cartoon-${layer.id}`} x="-20%" y="-20%" width="140%" height="140%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="4" result="noise" />
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+          </defs>
 
           {/* Invisible wide stroke for easy pointer hit testing */}
           <path
@@ -926,10 +975,11 @@ registerComponent({
             stroke="transparent"
             strokeWidth={Math.max(24, sw + 16)}
             fill="none"
+            filter={filterId}
             style={{ cursor: 'move', pointerEvents: 'stroke' }}
           />
 
-          {/* Solid/Normal stroke (cut out inside elements if hasOverlap is true) */}
+          {/* Solid/Normal stroke (cut out inside elements and text gap) */}
           <path
             d={pathD}
             stroke={c}
@@ -939,7 +989,8 @@ registerComponent({
             fill="none"
             strokeDasharray={strokeDasharray}
             strokeDashoffset={strokeDashoffset}
-            mask={hasOverlap ? `url(#${maskId})` : undefined}
+            mask={`url(#${maskId})`}
+            filter={filterId}
             style={{ pointerEvents: 'none' }}
           />
 
@@ -955,42 +1006,44 @@ registerComponent({
               strokeDasharray={intersectStyle === 'dotted' ? '2, 6' : '8, 8'}
               strokeDashoffset={strokeDashoffset}
               mask={`url(#${dottedMaskId})`}
+              filter={filterId}
               style={{ pointerEvents: 'none' }}
             />
           )}
 
-          <polygon
-            points={`${relX2 - 16},${relY2 - 9} ${relX2},${relY2} ${relX2 - 16},${relY2 + 9}`}
-            fill={c}
-            style={{
-              transform: `rotate(${angleDeg}deg) scale(${headScale})`,
-              transformOrigin: `${relX2}px ${relY2}px`,
-              transition: isPreview ? undefined : 'transform 50ms linear',
-              pointerEvents: 'none',
-            }}
-          />
+          {showArrowhead && (
+            <polygon
+              points={`${relX2 - 16},${relY2 - 9} ${relX2},${relY2} ${relX2 - 16},${relY2 + 9}`}
+              fill={c}
+              filter={filterId}
+              style={{
+                transform: `rotate(${angleDeg}deg) scale(${headScale})`,
+                transformOrigin: `${relX2}px ${relY2}px`,
+                transition: isPreview ? undefined : 'transform 50ms linear',
+                pointerEvents: 'none',
+              }}
+            />
+          )}
         </svg>
 
-        {String(layer.data.text ?? '') && (
+        {textStr !== '' && !isEditing && (
           <div
             style={{
               position: 'absolute',
               left: `${bendType === 'curved' ? middleX : relCx}px`,
               top: `${bendType === 'curved' ? middleY : relCy}px`,
               transform: 'translate(-50%, -50%)',
-              background: '#ffffff',
-              color: '#000000',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontSize: '12px',
-              fontWeight: 500,
-              border: '1px solid #e2e8f0',
+              color: c,
+              fontSize: '13px',
+              fontWeight: 700,
+              letterSpacing: '0.03em',
               whiteSpace: 'nowrap',
               pointerEvents: 'none',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              fontFamily: 'var(--font-sans), system-ui, sans-serif',
+              textShadow: '0 1px 2px rgba(255, 255, 255, 0.9), 0 0 4px rgba(255, 255, 255, 0.9)',
             }}
           >
-            {String(layer.data.text)}
+            {textStr}
           </div>
         )}
       </div>
@@ -1120,7 +1173,27 @@ export function extraTransform(layer: Layer): string {
   if (d.flipV) parts.push('scaleY(-1)')
   if (d.skewX) parts.push(`skewX(${Number(d.skewX)}deg)`)
   if (d.skewY) parts.push(`skewY(${Number(d.skewY)}deg)`)
-  if (typeof d.transform === 'string' && d.transform.trim()) parts.push(d.transform.trim())
+  
+  const has3D = d.perspective !== undefined || d.rotateX !== undefined || d.rotateY !== undefined || d.rotateZ !== undefined || d.translateZ !== undefined
+  if (has3D) {
+    const p = d.perspective !== undefined ? Number(d.perspective) : 0
+    const rx = d.rotateX !== undefined ? Number(d.rotateX) : 0
+    const ry = d.rotateY !== undefined ? Number(d.rotateY) : 0
+    const rz = d.rotateZ !== undefined ? Number(d.rotateZ) : 0
+    const tz = d.translateZ !== undefined ? Number(d.translateZ) : 0
+    
+    let transform3d = ''
+    if (p > 0) transform3d += `perspective(${p}px) `
+    if (rx !== 0) transform3d += `rotateX(${rx}deg) `
+    if (ry !== 0) transform3d += `rotateY(${ry}deg) `
+    if (rz !== 0) transform3d += `rotateZ(${rz}deg) `
+    if (tz !== 0) transform3d += `translateZ(${tz}px) `
+    
+    if (transform3d.trim()) parts.push(transform3d.trim())
+  } else if (typeof d.transform === 'string' && d.transform.trim()) {
+    parts.push(d.transform.trim())
+  }
+  
   return parts.length ? ' ' + parts.join(' ') : ''
 }
 

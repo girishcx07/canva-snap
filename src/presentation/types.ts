@@ -33,6 +33,7 @@ export type LayerStyle = {
   fontFamily?: string
   textAlign?: 'left' | 'center' | 'right'
   shadow?: string
+  boxShadow?: string
   padding?: number
 }
 

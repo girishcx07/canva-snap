@@ -502,32 +502,66 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
 
           {/* ── Advanced Styles ────────────────────────────────────────── */}
           <Section title="Advanced styles">
-            <Row>
-              <Num
-                label="Blur (px)"
-                value={Number(layer.data.editorBlur ?? 0)}
-                onChange={(v) => setData('editorBlur', v > 0 ? v : undefined)}
-              />
-              <Num
-                label="Grayscale (%)"
-                value={Number(layer.data.grayscale ?? 0)}
-                onChange={(v) => setData('grayscale', v > 0 ? Math.min(100, v) : undefined)}
-              />
-            </Row>
-            <Row>
-              <Num
-                label="Sepia (%)"
-                value={Number(layer.data.sepia ?? 0)}
-                onChange={(v) => setData('sepia', v > 0 ? Math.min(100, v) : undefined)}
-              />
-              <Num
-                label="Hue rotate (°)"
-                value={Number(layer.data.hueRotation ?? 0)}
-                onChange={(v) => setData('hueRotation', v !== 0 ? v % 360 : undefined)}
-              />
-            </Row>
-            <div className="flex flex-col gap-2 mt-2 pt-2 border-t">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider select-none">Box shadow (Figma Palette)</span>
+            <div className="flex flex-col gap-3">
+              <Field label="Blur">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={32}
+                    value={Number(layer.data.editorBlur ?? 0)}
+                    onChange={(e) => setData('editorBlur', Number(e.target.value) || undefined)}
+                    className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+                  />
+                  <span className="text-xs font-mono w-10 text-right">{layer.data.editorBlur ? `${String(layer.data.editorBlur)}px` : '0px'}</span>
+                </div>
+              </Field>
+
+              <Field label="Grayscale">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={Number(layer.data.grayscale ?? 0)}
+                    onChange={(e) => setData('grayscale', Number(e.target.value) || undefined)}
+                    className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+                  />
+                  <span className="text-xs font-mono w-10 text-right">{String(layer.data.grayscale ?? 0)}%</span>
+                </div>
+              </Field>
+
+              <Field label="Sepia">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={Number(layer.data.sepia ?? 0)}
+                    onChange={(e) => setData('sepia', Number(e.target.value) || undefined)}
+                    className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+                  />
+                  <span className="text-xs font-mono w-10 text-right">{String(layer.data.sepia ?? 0)}%</span>
+                </div>
+              </Field>
+
+              <Field label="Hue rotate">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    value={Number(layer.data.hueRotation ?? 0)}
+                    onChange={(e) => setData('hueRotation', Number(e.target.value) || undefined)}
+                    className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+                  />
+                  <span className="text-xs font-mono w-10 text-right">{String(layer.data.hueRotation ?? 0)}°</span>
+                </div>
+              </Field>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-4 pt-3 border-t">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider select-none">Box shadow (Figma Slider)</span>
               {(() => {
                 const shadow = parseBoxShadow(String(layer.data.boxShadow ?? ''))
                 const updateShadow = (patch: Partial<ReturnType<typeof parseBoxShadow>>) => {
@@ -537,33 +571,65 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
                 }
 
                 return (
-                  <div className="flex flex-col gap-2">
-                    <Row>
-                      <Num
-                        label="Offset X"
-                        value={shadow.x}
-                        onChange={(v) => updateShadow({ x: v })}
-                      />
-                      <Num
-                        label="Offset Y"
-                        value={shadow.y}
-                        onChange={(v) => updateShadow({ y: v })}
-                      />
-                    </Row>
-                    <Row>
-                      <Num
-                        label="Blur"
-                        value={shadow.blur}
-                        onChange={(v) => updateShadow({ blur: Math.max(0, v) })}
-                      />
-                      <Num
-                        label="Spread"
-                        value={shadow.spread}
-                        onChange={(v) => updateShadow({ spread: v })}
-                      />
-                    </Row>
+                  <div className="flex flex-col gap-3 mt-1">
+                    <Field label="Offset X">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={-50}
+                          max={50}
+                          value={shadow.x}
+                          onChange={(e) => updateShadow({ x: Number(e.target.value) })}
+                          className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+                        />
+                        <span className="text-xs font-mono w-10 text-right">{shadow.x}px</span>
+                      </div>
+                    </Field>
+
+                    <Field label="Offset Y">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={-50}
+                          max={50}
+                          value={shadow.y}
+                          onChange={(e) => updateShadow({ y: Number(e.target.value) })}
+                          className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+                        />
+                        <span className="text-xs font-mono w-10 text-right">{shadow.y}px</span>
+                      </div>
+                    </Field>
+
+                    <Field label="Blur radius">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={shadow.blur}
+                          onChange={(e) => updateShadow({ blur: Number(e.target.value) })}
+                          className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+                        />
+                        <span className="text-xs font-mono w-10 text-right">{shadow.blur}px</span>
+                      </div>
+                    </Field>
+
+                    <Field label="Spread">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={-30}
+                          max={50}
+                          value={shadow.spread}
+                          onChange={(e) => updateShadow({ spread: Number(e.target.value) })}
+                          className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+                        />
+                        <span className="text-xs font-mono w-10 text-right">{shadow.spread}px</span>
+                      </div>
+                    </Field>
+
                     <Color
-                      label="Color"
+                      label="Shadow Color"
                       value={shadow.color}
                       onChange={(v) => updateShadow({ color: v })}
                     />
@@ -574,6 +640,250 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
           </Section>
         </>
       )}
+
+      {layer.type === 'arrow' && (() => {
+        const STROKE_COLORS = ['#1e1e1e', '#ff4b4b', '#22c55e', '#2563eb', '#f97316']
+        return (
+          <Section title="Arrow properties">
+            {/* Color Palette Selector */}
+            <Field label="Stroke">
+              <div className="flex items-center gap-2">
+                {STROKE_COLORS.map((col) => {
+                  const isSelected = layer.style.color === col
+                  return (
+                    <button
+                      key={col}
+                      onClick={() => setStyle('color', col)}
+                      className={`size-6 rounded-full border transition-all hover:scale-110 ${
+                        isSelected ? 'ring-2 ring-indigo-500 ring-offset-1 border-indigo-500 scale-105' : 'border-neutral-200'
+                      }`}
+                      style={{ backgroundColor: col }}
+                    />
+                  )
+                })}
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={toHex(layer.style.color)}
+                    onChange={(e) => setStyle('color', e.target.value)}
+                    className="absolute inset-0 size-6 opacity-0 cursor-pointer"
+                  />
+                  <div
+                    className={`size-6 rounded-full border border-dashed border-neutral-400 flex items-center justify-center text-[10px] text-neutral-500 font-bold hover:scale-110 transition-transform ${
+                      !STROKE_COLORS.includes(layer.style.color || '') ? 'ring-2 ring-indigo-500 ring-offset-1 border-indigo-500' : ''
+                    }`}
+                    style={{
+                      background: !STROKE_COLORS.includes(layer.style.color || '') ? layer.style.color : 'transparent',
+                    }}
+                  >
+                    🎨
+                  </div>
+                </div>
+              </div>
+            </Field>
+
+            {/* Stroke Width Buttons */}
+            <Field label="Stroke width">
+              <div className="flex bg-muted p-0.5 rounded-lg border max-w-xs">
+                {[
+                  { label: 'Thin', val: 2 },
+                  { label: 'Medium', val: 4 },
+                  { label: 'Thick', val: 8 },
+                ].map((opt) => {
+                  const isActive = (layer.style.borderWidth ?? 4) === opt.val
+                  return (
+                    <button
+                      key={opt.label}
+                      onClick={() => setStyle('borderWidth', opt.val)}
+                      className={`flex-1 py-1 px-3 text-center text-xs font-semibold rounded-md transition-all ${
+                        isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            {/* Stroke Style Segmented Buttons */}
+            <Field label="Stroke style">
+              <div className="flex bg-muted p-0.5 rounded-lg border max-w-xs">
+                {[
+                  { label: 'Solid', val: 'solid' },
+                  { label: 'Dashed', val: 'dashed' },
+                  { label: 'Dotted', val: 'dotted' },
+                ].map((opt) => {
+                  const isActive = String(layer.data.strokeDash ?? 'solid') === opt.val
+                  return (
+                    <button
+                      key={opt.label}
+                      onClick={() => setData('strokeDash', opt.val)}
+                      className={`flex-1 py-1 px-3 text-center text-xs font-semibold rounded-md transition-all ${
+                        isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            {/* Sloppiness Segmented Buttons */}
+            <Field label="Sloppiness">
+              <div className="flex bg-muted p-0.5 rounded-lg border max-w-xs">
+                {[
+                  { label: 'Architect', val: 0 },
+                  { label: 'Artist', val: 1 },
+                  { label: 'Cartoon', val: 2 },
+                ].map((opt) => {
+                  const isActive = Number(layer.data.sloppiness ?? 0) === opt.val
+                  return (
+                    <button
+                      key={opt.label}
+                      onClick={() => setData('sloppiness', opt.val)}
+                      className={`flex-1 py-1 px-2 text-center text-xs font-semibold rounded-md transition-all ${
+                        isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            {/* Arrow Type Segmented Buttons */}
+            <Field label="Arrow type">
+              <div className="flex bg-muted p-0.5 rounded-lg border max-w-xs">
+                {[
+                  { label: 'Straight', val: 'straight' },
+                  { label: 'Curved', val: 'curved' },
+                  { label: 'Elbow', val: 'corner' },
+                ].map((opt) => {
+                  const isActive = String(layer.data.bendType ?? 'straight') === opt.val
+                  return (
+                    <button
+                      key={opt.label}
+                      onClick={() => setData('bendType', opt.val)}
+                      className={`flex-1 py-1 px-2 text-center text-xs font-semibold rounded-md transition-all ${
+                        isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            {/* Arrowheads Buttons */}
+            <Field label="Arrowheads">
+              <div className="flex bg-muted p-0.5 rounded-lg border max-w-[160px]">
+                {[
+                  { label: 'None', val: 'none' },
+                  { label: 'Arrow', val: 'arrow' },
+                ].map((opt) => {
+                  const isActive = String(layer.data.arrowhead ?? 'arrow') === opt.val
+                  return (
+                    <button
+                      key={opt.label}
+                      onClick={() => setData('arrowhead', opt.val)}
+                      className={`flex-1 py-1 px-3 text-center text-xs font-semibold rounded-md transition-all ${
+                        isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            {/* Opacity Slider */}
+            <Field label="Opacity">
+              <div className="flex items-center gap-4 text-xs font-semibold text-neutral-500 pr-2">
+                <span>0</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round((layer.transform.opacity ?? 1) * 100)}
+                  onChange={(e) => store.patchTransform(layer.id, { opacity: Number(e.target.value) / 100 })}
+                  className="flex-1 accent-indigo-600 bg-muted rounded-lg appearance-none cursor-pointer h-1.5"
+                />
+                <span>100</span>
+              </div>
+            </Field>
+
+            {/* Layers ordering */}
+            <Field label="Layers">
+              <div className="flex bg-muted p-0.5 rounded-lg border max-w-xs justify-between gap-1">
+                {[
+                  { label: 'To Back', action: 'back', icon: '⬇️' },
+                  { label: 'Backward', action: 'backward', icon: '👇' },
+                  { label: 'Forward', action: 'forward', icon: '👆' },
+                  { label: 'To Front', action: 'front', icon: '⬆️' },
+                ].map((opt) => {
+                  return (
+                    <button
+                      key={opt.label}
+                      title={opt.label}
+                      onClick={() => {
+                        const slide = store.getState().project.slides.find((s) => s.id === store.getState().currentSlideId)
+                        if (!slide) return
+                        const idx = slide.layers.findIndex((l) => l.id === layer.id)
+                        if (idx < 0) return
+                        let targetIdx = idx
+                        if (opt.action === 'back') targetIdx = 0
+                        else if (opt.action === 'backward') targetIdx = Math.max(0, idx - 1)
+                        else if (opt.action === 'forward') targetIdx = Math.min(slide.layers.length - 1, idx + 1)
+                        else if (opt.action === 'front') targetIdx = slide.layers.length - 1
+                        store.reorderLayer(layer.id, targetIdx)
+                      }}
+                      className="flex-1 py-1 text-center rounded-md hover:bg-background transition-all border border-transparent hover:border-neutral-200"
+                    >
+                      <div className="text-xs">{opt.icon}</div>
+                      <div className="text-[8px] text-neutral-500 mt-0.5 leading-none">{opt.label}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            {/* Quick Actions (Duplicate / Delete) */}
+            <Field label="Actions">
+              <div className="flex bg-muted p-0.5 rounded-lg border max-w-xs justify-between gap-1">
+                <button
+                  onClick={() => store.duplicateLayer(layer.id)}
+                  className="flex-1 py-1 text-center text-xs font-semibold rounded-md hover:bg-background transition-all border border-transparent hover:border-neutral-200 text-neutral-700 flex items-center justify-center gap-1.5"
+                >
+                  <span>📋</span>
+                  <span className="text-[10px]">Duplicate</span>
+                </button>
+                <button
+                  onClick={() => store.deleteLayer(layer.id)}
+                  className="flex-1 py-1 text-center text-xs font-semibold rounded-md hover:bg-background transition-all border border-transparent hover:border-neutral-200 text-red-600 flex items-center justify-center gap-1.5"
+                >
+                  <span>🗑️</span>
+                  <span className="text-[10px]">Delete</span>
+                </button>
+              </div>
+            </Field>
+
+            {/* Annotation Label Text Input */}
+            <Field label="Annotation label">
+              <Input
+                className="h-7"
+                placeholder="e.g. RPC Call"
+                value={String(layer.data.text ?? '')}
+                onChange={(e) => setData('text', e.target.value)}
+              />
+            </Field>
+          </Section>
+        )
+      })()}
 
       <Section title="Transform">
         <Row>
@@ -594,14 +904,92 @@ function LayerInspector({ store, layer }: { store: EditorStore; layer: Layer }) 
           <Num label="Skew X" value={Number(layer.data.skewX ?? 0)} onChange={(v) => setData('skewX', v)} />
           <Num label="Skew Y" value={Number(layer.data.skewY ?? 0)} onChange={(v) => setData('skewY', v)} />
         </Row>
-        <Field label="Custom CSS transform">
-          <textarea
-            className="min-h-16 w-full resize-y rounded-md border bg-transparent p-2 font-mono text-xs"
-            placeholder="e.g. perspective(500px) rotateY(20deg) skewX(8deg)"
-            value={String(layer.data.transform ?? '')}
-            onChange={(e) => setData('transform', e.target.value)}
-          />
-        </Field>
+        
+        <div className="flex flex-col gap-3 mt-3 pt-3 border-t">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider select-none">3D Perspective Space</span>
+          
+          <Field label="Perspective">
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={0}
+                max={2000}
+                step={50}
+                value={Number(layer.data.perspective ?? 0)}
+                onChange={(e) => setData('perspective', Number(e.target.value) || undefined)}
+                className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+              />
+              <span className="text-xs font-mono w-12 text-right">{layer.data.perspective ? `${String(layer.data.perspective)}px` : 'None'}</span>
+            </div>
+          </Field>
+
+          <Field label="Rotate X (tilt)">
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                value={Number(layer.data.rotateX ?? 0)}
+                onChange={(e) => setData('rotateX', Number(e.target.value))}
+                className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+              />
+              <span className="text-xs font-mono w-12 text-right">{String(layer.data.rotateX ?? 0)}°</span>
+            </div>
+          </Field>
+
+          <Field label="Rotate Y (pan)">
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                value={Number(layer.data.rotateY ?? 0)}
+                onChange={(e) => setData('rotateY', Number(e.target.value))}
+                className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+              />
+              <span className="text-xs font-mono w-12 text-right">{String(layer.data.rotateY ?? 0)}°</span>
+            </div>
+          </Field>
+
+          <Field label="Rotate Z (roll)">
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                value={Number(layer.data.rotateZ ?? 0)}
+                onChange={(e) => setData('rotateZ', Number(e.target.value))}
+                className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+              />
+              <span className="text-xs font-mono w-12 text-right">{String(layer.data.rotateZ ?? 0)}°</span>
+            </div>
+          </Field>
+
+          <Field label="Translate Z (height)">
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={-200}
+                max={400}
+                value={Number(layer.data.translateZ ?? 0)}
+                onChange={(e) => setData('translateZ', Number(e.target.value))}
+                className="flex-1 accent-indigo-600 bg-muted h-1 rounded cursor-pointer"
+              />
+              <span className="text-xs font-mono w-12 text-right">{String(layer.data.translateZ ?? 0)}px</span>
+            </div>
+          </Field>
+        </div>
+
+        <div className="mt-3 pt-3 border-t">
+          <Field label="Custom CSS transform">
+            <textarea
+              className="min-h-16 w-full resize-y rounded-md border bg-transparent p-2 font-mono text-xs"
+              placeholder="e.g. perspective(500px) rotateY(20deg) skewX(8deg)"
+              value={String(layer.data.transform ?? '')}
+              onChange={(e) => setData('transform', e.target.value)}
+            />
+          </Field>
+        </div>
       </Section>
     </>
   )

@@ -70,7 +70,7 @@ export function sampleMorph(plan: MorphPlan, t: number): MorphItem[] {
       fill: lerpColor(from.style.fill, to.style.fill, t),
       color: lerpColor(from.style.color, to.style.color, t),
       opacity: lerp(from.transform.opacity, to.transform.opacity, t),
-      data: lerpCodeRange(from, to, t),
+      data: lerpData(from, to, t),
     })
   }
 
@@ -99,21 +99,81 @@ export function sampleMorph(plan: MorphPlan, t: number): MorphItem[] {
   return items
 }
 
-// For matched code blocks, interpolate the visible-line window so the code
-// smoothly scrolls (Snappify-style) in sync with the morph progress.
-function lerpCodeRange(
-  from: Layer,
-  to: Layer,
-  t: number,
-): Record<string, unknown> | undefined {
-  if (from.type !== 'code' || to.type !== 'code') return undefined
-  const fr = from.data.visibleRange as [number, number] | undefined
-  const tr = to.data.visibleRange as [number, number] | undefined
-  if (!fr || !tr) return undefined
-  return {
-    ...to.data,
-    visibleRange: [lerp(fr[0], tr[0], t), lerp(fr[1], tr[1], t)],
+function parseTransformString(str: string | undefined) {
+  if (!str) {
+    return {
+      perspective: 1000,
+      rotateX: 0,
+      rotateY: 0,
+      rotateZ: 0,
+      translateZ: 0,
+    }
   }
+  const perspectiveMatch = str.match(/perspective\(([-\d.]+)px\)/)
+  const rotateXMatch = str.match(/rotateX\(([-\d.]+)deg\)/)
+  const rotateYMatch = str.match(/rotateY\(([-\d.]+)deg\)/)
+  const rotateZMatch = str.match(/rotateZ\(([-\d.]+)deg\)/)
+  const translateZMatch = str.match(/translateZ\(([-\d.]+)px\)/)
+
+  return {
+    perspective: perspectiveMatch ? parseFloat(perspectiveMatch[1]) : 1000,
+    rotateX: rotateXMatch ? parseFloat(rotateXMatch[1]) : 0,
+    rotateY: rotateYMatch ? parseFloat(rotateYMatch[1]) : 0,
+    rotateZ: rotateZMatch ? parseFloat(rotateZMatch[1]) : 0,
+    translateZ: translateZMatch ? parseFloat(translateZMatch[1]) : 0,
+  }
+}
+
+function lerpTransformString(aStr: string | undefined, bStr: string | undefined, t: number): string | undefined {
+  if (!aStr && !bStr) return undefined
+  
+  const a = parseTransformString(aStr)
+  const b = parseTransformString(bStr)
+  
+  const perspective = lerp(a.perspective, b.perspective, t)
+  const rotateX = lerp(a.rotateX, b.rotateX, t)
+  const rotateY = lerp(a.rotateY, b.rotateY, t)
+  const rotateZ = lerp(a.rotateZ, b.rotateZ, t)
+  const translateZ = lerp(a.translateZ, b.translateZ, t)
+  
+  return `perspective(${Math.round(perspective)}px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) rotateZ(${rotateZ.toFixed(2)}deg) translateZ(${Math.round(translateZ)}px)`
+}
+
+function lerpData(from: Layer, to: Layer, t: number): Record<string, unknown> {
+  const data: Record<string, unknown> = { ...to.data }
+
+  // 1. Interpolate visibleRange for code blocks
+  if (from.type === 'code' && to.type === 'code') {
+    const fr = from.data.visibleRange as [number, number] | undefined
+    const tr = to.data.visibleRange as [number, number] | undefined
+    if (fr && tr) {
+      data.visibleRange = [lerp(fr[0], tr[0], t), lerp(fr[1], tr[1], t)]
+    }
+  }
+
+  // 2. Interpolate 3D transform strings in data.transform
+  const fromTrans = from.data.transform as string | undefined
+  const toTrans = to.data.transform as string | undefined
+  if (fromTrans || toTrans) {
+    data.transform = lerpTransformString(fromTrans, toTrans, t)
+  }
+
+  // 3. Interpolate any extra numeric fields
+  const numericKeys = [
+    'skewX', 'skewY', 'rotateX', 'rotateY', 'rotateZ', 'translateZ', 'perspective',
+    'editorBlur', 'grayscale', 'sepia', 'hueRotation'
+  ]
+  for (const key of numericKeys) {
+    const fromVal = from.data[key]
+    const toVal = to.data[key]
+    if (fromVal !== undefined || toVal !== undefined) {
+      const fNum = Number(fromVal ?? 0)
+      const tNum = Number(toVal ?? 0)
+      data[key] = lerp(fNum, tNum, t)
+    }
+  }
+
+  return data
 }
 
 function lerpTransform(a: Transform, b: Transform, t: number): Transform {

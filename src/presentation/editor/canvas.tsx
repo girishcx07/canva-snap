@@ -625,6 +625,24 @@ function LayerBox({
   onContextMenu: (e: React.MouseEvent) => void
 }) {
   const t = layer.transform
+  const arrowInputRef = useRef<HTMLInputElement>(null)
+  const isEditing = editingArrowTextId === layer.id
+
+  useEffect(() => {
+    if (isEditing) {
+      if (typeof window !== 'undefined') {
+        (window as any)._editingArrowId = layer.id
+      }
+      setTimeout(() => {
+        arrowInputRef.current?.focus()
+        arrowInputRef.current?.select()
+      }, 50)
+    } else {
+      if (typeof window !== 'undefined' && (window as any)._editingArrowId === layer.id) {
+        (window as any)._editingArrowId = null
+      }
+    }
+  }, [isEditing, layer.id])
   const hs = 10 / zoom
   const isArrow = layer.type === 'arrow'
   // Interactive content (e.g. a selected code block) captures pointer input so
@@ -654,9 +672,11 @@ function LayerBox({
         cursor: layer.locked ? 'default' : 'move',
       }}
       onPointerDown={interactive ? undefined : (e) => onStart(e, layer, 'move')}
-      onDoubleClick={() => {
+      onDoubleClick={(e) => {
+        e.stopPropagation()
         if (isArrow) {
-          setEditMode(editMode === 'rect' ? 'both' : 'rect')
+          setEditMode('both')
+          setEditingArrowTextId(layer.id)
         }
       }}
       onContextMenu={onContextMenu}
@@ -767,14 +787,19 @@ function LayerBox({
                     {/* Inline typography editor overlay */}
                     {editingArrowTextId === layer.id && (
                       <input
+                        ref={arrowInputRef}
                         autoFocus
-                        className="absolute z-30 rounded border border-neutral-300 bg-background px-2 py-0.5 text-xs shadow-lg text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        className="absolute z-30 bg-transparent px-1 outline-none border-b border-dashed border-indigo-500/70"
                         style={{
                           left: middleX,
-                          top: middleY - 24 / zoom,
+                          top: middleY,
                           transform: 'translate(-50%, -50%)',
-                          width: '120px',
+                          width: `${Math.max(60, String(layer.data.text ?? '').length * 8 + 16)}px`,
                           textAlign: 'center',
+                          color: (layer as any).style?.color ?? '#1e1e1e',
+                          fontFamily: 'var(--font-sans), system-ui, sans-serif',
+                          fontSize: '13px',
+                          fontWeight: 700,
                         }}
                         value={String(layer.data.text ?? '')}
                         onChange={(e) => onUpdate({ data: { ...layer.data, text: e.target.value } })}
@@ -783,7 +808,9 @@ function LayerBox({
                             setEditingArrowTextId(null)
                           }
                         }}
-                        onBlur={() => setEditingArrowTextId(null)}
+                        onBlur={() => {
+                          setTimeout(() => setEditingArrowTextId(null), 150)
+                        }}
                         onClick={(e) => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
                       />
