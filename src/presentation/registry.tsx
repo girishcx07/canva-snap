@@ -515,9 +515,21 @@ registerComponent({
   label: 'Arrow',
   category: 'layouts',
   icon: ArrowRightIcon,
-  defaultData: () => ({}),
+  defaultData: () => ({ bendType: 'straight' }),
   defaultTransform: () => ({ width: 220, height: 40 }),
   defaultStyle: () => ({ color: '#ffffff', borderWidth: 4 }),
+  fields: [
+    {
+      key: 'bendType',
+      label: 'Bend Style',
+      type: 'select',
+      options: [
+        { label: 'Straight Line', value: 'straight' },
+        { label: 'Elbow Corner', value: 'corner' },
+        { label: 'Smooth Curved', value: 'curved' },
+      ],
+    },
+  ],
   render: ({ layer, mode, frame }) => {
     const w = layer.transform.width
     const h = layer.transform.height
@@ -536,9 +548,35 @@ registerComponent({
     const delay = anim?.delayMs ?? 0
     const easing = anim?.easing ?? 'easeOut'
     
-    // Calculate length of the arrow line
-    const length = Math.max(0, w - 14)
+    // Define bend styles and paths
+    const bendType = String(layer.data.bendType ?? 'straight')
+    const startY = sw / 2 + 2
+    const endY = h - (sw / 2 + 2)
+    const lineEndX = w - 14
     
+    let pathD = ''
+    let totalLength = w - 14
+    let arrowHeadY = h / 2
+    
+    if (bendType === 'straight') {
+      pathD = `M 0,${h / 2} L ${lineEndX},${h / 2}`
+      totalLength = lineEndX
+      arrowHeadY = h / 2
+    } else if (bendType === 'corner') {
+      // Stepped elbow corner (L-shape/elbow)
+      const midX = w / 2
+      pathD = `M 0,${startY} L ${midX},${startY} L ${midX},${endY} L ${lineEndX},${endY}`
+      totalLength = midX + Math.abs(endY - startY) + (lineEndX - midX)
+      arrowHeadY = endY
+    } else if (bendType === 'curved') {
+      // Smooth S-curve (cubic Bezier)
+      const midX = w / 2
+      pathD = `M 0,${startY} C ${midX},${startY} ${midX},${endY} ${lineEndX},${endY}`
+      // Approximation of S-curve length
+      totalLength = Math.sqrt(lineEndX * lineEndX + (endY - startY) * (endY - startY)) * 1.08
+      arrowHeadY = endY
+    }
+
     // Default values (fully drawn)
     let strokeDasharray: string | undefined = undefined
     let strokeDashoffset: number | undefined = undefined
@@ -547,28 +585,28 @@ registerComponent({
     if (mode === 'present' && anim) {
       const progress = frame?.progress ?? 0
       
-      strokeDasharray = `${length}`
+      strokeDasharray = `${totalLength}`
       if (!isExit) {
         // Entrance animation
         if (direction === 'forward') {
-          strokeDashoffset = length * (1 - progress)
+          strokeDashoffset = totalLength * (1 - progress)
           // Scale head from 0 to 1 at the end (last 30% of progress)
           headScale = progress < 0.7 ? 0 : (progress - 0.7) / 0.3
         } else {
           // Backward
-          strokeDashoffset = -length * (1 - progress)
+          strokeDashoffset = -totalLength * (1 - progress)
           // Scale head immediately at start (first 30% of progress)
           headScale = Math.min(1, progress / 0.3)
         }
       } else {
         // Exit animation
         if (direction === 'forward') {
-          strokeDashoffset = length * progress
+          strokeDashoffset = totalLength * progress
           // Head scales down immediately (first 30% of progress)
           headScale = Math.max(0, 1 - progress / 0.3)
         } else {
           // Backward
-          strokeDashoffset = -length * progress
+          strokeDashoffset = -totalLength * progress
           // Head scales down at the end (last 30% of progress)
           headScale = progress > 0.7 ? 0 : (0.7 - progress) / 0.7
         }
@@ -589,7 +627,7 @@ registerComponent({
                      easing === 'easeInOut' ? 'ease-in-out' : 'ease-out'
                      
     const styleVariables: React.CSSProperties = isPreview ? {
-      '--arrow-length': `${length}px`,
+      '--arrow-length': `${totalLength}px`,
       '--duration': `${duration}ms`,
       '--delay': `${delay}ms`,
       '--easing': easingCss,
@@ -632,7 +670,7 @@ registerComponent({
               70%, 100% { transform: scale(0); opacity: 0; }
             }
             
-            .animate-draw-forward line {
+            .animate-draw-forward path {
               stroke-dasharray: var(--arrow-length);
               stroke-dashoffset: var(--arrow-length);
               animation: draw-forward-kf var(--duration) var(--easing) var(--delay) forwards;
@@ -642,7 +680,7 @@ registerComponent({
               animation: draw-head-enter-kf var(--duration) var(--easing) var(--delay) forwards;
             }
             
-            .animate-draw-backward line {
+            .animate-draw-backward path {
               stroke-dasharray: var(--arrow-length);
               stroke-dashoffset: calc(-1 * var(--arrow-length));
               animation: draw-backward-kf var(--duration) var(--easing) var(--delay) forwards;
@@ -652,7 +690,7 @@ registerComponent({
               animation: draw-head-enter-backward-kf var(--duration) var(--easing) var(--delay) forwards;
             }
             
-            .animate-draw-exit-forward line {
+            .animate-draw-exit-forward path {
               stroke-dasharray: var(--arrow-length);
               stroke-dashoffset: 0;
               animation: draw-exit-forward-kf var(--duration) var(--easing) var(--delay) forwards;
@@ -662,7 +700,7 @@ registerComponent({
               animation: draw-head-exit-kf var(--duration) var(--easing) var(--delay) forwards;
             }
             
-            .animate-draw-exit-backward line {
+            .animate-draw-exit-backward path {
               stroke-dasharray: var(--arrow-length);
               stroke-dashoffset: 0;
               animation: draw-exit-backward-kf var(--duration) var(--easing) var(--delay) forwards;
@@ -674,19 +712,18 @@ registerComponent({
           `}} />
         )}
         <svg width="100%" height="100%" style={{ overflow: 'visible' }} className={animClass}>
-          <line
-            x1={0}
-            y1={h / 2}
-            x2={w - 14}
-            y2={h / 2}
+          <path
+            d={pathD}
             stroke={c}
             strokeWidth={sw}
             strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
             strokeDasharray={strokeDasharray}
             strokeDashoffset={strokeDashoffset}
           />
           <polygon
-            points={`${w - 16},${h / 2 - 9} ${w},${h / 2} ${w - 16},${h / 2 + 9}`}
+            points={`${w - 16},${arrowHeadY - 9} ${w},${arrowHeadY} ${w - 16},${arrowHeadY + 9}`}
             fill={c}
             style={{
               transform: `scale(${headScale})`,
