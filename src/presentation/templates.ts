@@ -1,9 +1,14 @@
-// Starter templates. A template is just a Project builder; applying one
-// replaces the current document. Includes a blank white deck for "new project".
-
 import { defaultTransform, uid } from './doc'
 import { createSampleProject } from './sample-project'
 import type { Layer, Project, Slide } from './types'
+import {
+  reduxFlowProject,
+  cssGridProject,
+  bstProject,
+  gitProject,
+  apiProject,
+  nextJsAppRouterProject,
+} from './extra-templates'
 
 function whiteSlide(name: string, layers: Layer[]): Slide {
   return {
@@ -88,6 +93,13 @@ export type Template = {
 export const TEMPLATES: Template[] = [
   { id: 'blank', label: 'Blank', build: createBlankProject },
   { id: 'flexbox', label: 'CSS Flexbox', build: createSampleProject },
+  { id: 'redux-flow', label: 'React/Redux Flow', build: reduxFlowProject },
+  { id: 'css-grid', label: 'CSS Grid', build: cssGridProject },
+  { id: 'bst', label: 'BST Insertion', build: bstProject },
+  { id: 'git', label: 'Git Rebase', build: gitProject },
+  { id: 'graphql', label: 'REST vs GraphQL', build: apiProject },
+  { id: 'nextjs-flow', label: 'Next.js App Router', build: nextJsAppRouterProject },
   { id: 'title', label: 'Title slide', build: titleDeck },
   { id: 'code', label: 'Code walkthrough', build: codeDeck },
 ]
+

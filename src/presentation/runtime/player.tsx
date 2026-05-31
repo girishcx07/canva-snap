@@ -14,6 +14,7 @@ import { getPreset, sampleKeyframes, type SampledFrame } from '../engine/animati
 import { fireTrigger, runActions, type ActionContext } from '../engine/events'
 import { LayerView, extraTransform } from '../registry'
 import type { ID, Layer, Project, Transform } from '../types'
+import type { CodeBlockData, CodeAnimationConfig } from '../components/code-block'
 
 const REST: SampledFrame = { x: 0, y: 0, rotation: 0, scale: 1, opacity: 1 }
 
@@ -35,6 +36,8 @@ export function Player({
   const [frames, setFrames] = useState<Record<ID, SampledFrame>>({})
   const [stepAnim, setStepAnim] = useState<{ step: number; startMs: number; durationMs: number } | null>(null)
   const [overrides, setOverrides] = useState<Record<ID, boolean>>({})
+  // Code-change animation: progress 0→1 per layer ID
+  const [codeAnimFrames, setCodeAnimFrames] = useState<Record<ID, number>>({})
   const stateRef = useRef<Record<string, unknown>>({})
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -86,7 +89,7 @@ export function Player({
     setStepAnim(null)
   }, [nav.index])
 
-  // Drive the morph transition and then start the step 0 animation
+  // Drive the morph transition, then start step 0 + code-change animations
   useEffect(() => {
     const morphMs =
       nav.from === nav.index || slide.transition.type === 'none'
@@ -95,6 +98,7 @@ export function Player({
 
     const start = performance.now()
     let raf = 0
+    let codeAnimStarted = false
 
     const loop = (t: number) => {
       const elapsed = t - start
@@ -103,20 +107,77 @@ export function Player({
         raf = requestAnimationFrame(loop)
         return
       }
-      
+
       // Morph transition has finished
       setNav((n) => (n.progress >= 1 ? n : { ...n, progress: 1 }))
-      
+
       // Initialize active step 0 animation
       setStepAnim((prev) => {
         if (prev && prev.step === 0) return prev
         return { step: 0, startMs: performance.now(), durationMs: steps[0]?.durationMs ?? 0 }
       })
+
+      // Start code-change animations (once)
+      if (!codeAnimStarted) {
+        codeAnimStarted = true
+        startCodeAnimations()
+      }
     }
 
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nav.index, nav.from, slide, steps])
+
+  /**
+   * For each code layer on the current slide that has a matching layer
+   * (same morphKey) on the previous slide AND has a codeAnimation config,
+   * drive an animation loop from 0→1.
+   */
+  function startCodeAnimations() {
+    // Reset all code anim frames on slide change
+    setCodeAnimFrames({})
+
+    if (nav.from === nav.index) return
+    const prevSlide = project.slides[nav.from]
+    if (!prevSlide) return
+
+    for (const layer of slide.layers) {
+      if (layer.type !== 'code') continue
+      const codeData = layer.data as CodeBlockData
+      const animCfg: CodeAnimationConfig | undefined = codeData.codeAnimation
+      if (!animCfg || animCfg.type === 'none') continue
+
+      // Find matching layer in previous slide by morphKey or name
+      const prevLayer = prevSlide.layers.find(
+        (l) => l.type === 'code' && (
+          (layer.morphKey && l.morphKey === layer.morphKey) ||
+          (!layer.morphKey && l.name === layer.name)
+        )
+      )
+      if (!prevLayer) continue
+
+      const layerId = layer.id
+      const duration = animCfg.durationMs ?? 600
+      const delay = animCfg.delayMs ?? 0
+      const easing = animCfg.easing ?? 'easeOut'
+      const animStart = performance.now()
+
+      const animLoop = (t: number) => {
+        const elapsed = t - animStart - delay
+        if (elapsed < 0) {
+          setCodeAnimFrames((prev) => ({ ...prev, [layerId]: 0 }))
+          requestAnimationFrame(animLoop)
+          return
+        }
+        const raw = Math.min(1, elapsed / duration)
+        const p = ease(easing, raw)
+        setCodeAnimFrames((prev) => ({ ...prev, [layerId]: p }))
+        if (raw < 1) requestAnimationFrame(animLoop)
+      }
+      requestAnimationFrame(animLoop)
+    }
+  }
 
   // Drive local step animations
   useEffect(() => {
@@ -274,12 +335,33 @@ export function Player({
           : slide.layers.map((layer) => {
               const visible = overrides[layer.id] ?? !layer.hidden
               if (!visible) return null
+
+              // Resolve fromCode for code-change animations
+              let fromCode: string | undefined
+              const codeAnimProgress = codeAnimFrames[layer.id]
+              if (layer.type === 'code' && codeAnimProgress !== undefined) {
+                const prevSlide = project.slides[nav.from]
+                if (prevSlide && nav.from !== nav.index) {
+                  const prevLayer = prevSlide.layers.find(
+                    (l) => l.type === 'code' && (
+                      (layer.morphKey && l.morphKey === layer.morphKey) ||
+                      (!layer.morphKey && l.name === layer.name)
+                    )
+                  )
+                  if (prevLayer) {
+                    fromCode = (prevLayer.data as CodeBlockData).code
+                  }
+                }
+              }
+
               return (
                 <RenderedLayer
                   key={layer.id}
                   layer={layer}
                   transform={layer.transform}
                   frame={frames[layer.id] ?? REST}
+                  fromCode={fromCode}
+                  animProgress={codeAnimProgress}
                   onClick={(e) => {
                     e.stopPropagation()
                     onLayerClick(layer)
@@ -317,6 +399,8 @@ function RenderedLayer({
   transform,
   frame,
   opacityOverride,
+  fromCode,
+  animProgress,
   onClick,
   onMouseEnter,
 }: {
@@ -324,6 +408,8 @@ function RenderedLayer({
   transform: Transform
   frame: SampledFrame
   opacityOverride?: number
+  fromCode?: string
+  animProgress?: number
   onClick?: (e: React.MouseEvent) => void
   onMouseEnter?: () => void
 }) {
@@ -342,7 +428,7 @@ function RenderedLayer({
         pointerEvents: onClick ? 'auto' : 'none',
       }}
     >
-      <LayerView layer={layer} mode="present" frame={frame} />
+      <LayerView layer={layer} mode="present" frame={{ ...frame, fromCode, animProgress } as any} />
     </div>
   )
 }

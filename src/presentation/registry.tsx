@@ -426,6 +426,13 @@ registerComponent({
       code: 'function hello() {\n  return "world"\n}',
       language: 'typescript',
       showLineNumbers: true,
+      lineNumberStart: 1,
+      tabSize: 2,
+      showWindowChrome: true,
+      showAccentColor: true,
+      highlightOpacity: 100,
+      highlightFilter: 'none',
+      codeAnimation: { type: 'none', durationMs: 600, delayMs: 0, easing: 'easeOut' },
     }) satisfies CodeBlockData,
   defaultTransform: () => ({ width: 520, height: 280 }),
   fields: [
@@ -436,7 +443,7 @@ registerComponent({
       options: codeLanguages.map((l) => ({ label: l, value: l })),
     },
   ],
-  render: ({ layer, mode, selected, update }) => (
+  render: ({ layer, mode, selected, update, frame }) => (
     <CodeBlock
       data={layer.data as CodeBlockData}
       className="h-full w-full"
@@ -444,13 +451,114 @@ registerComponent({
       interactive={mode === 'editor' && !!selected}
       onChange={
         update
-          ? (code) => update({ data: { ...layer.data, code } })
+          ? (code) => {
+              const files = layer.data.files as import('./components/code-block').CodeFile[] | undefined
+              if (files && files.length > 0) {
+                const active = (layer.data.activeFile as number | undefined) ?? 0
+                const updatedFiles = [...files]
+                if (updatedFiles[active]) {
+                  updatedFiles[active] = { ...updatedFiles[active], code }
+                }
+                update({ data: { ...layer.data, files: updatedFiles } })
+              } else {
+                update({ data: { ...layer.data, code } })
+              }
+            }
           : undefined
       }
+      onChangeTitle={
+        update && mode === 'editor'
+          ? (title) => {
+              const files = layer.data.files as import('./components/code-block').CodeFile[] | undefined
+              if (files && files.length > 0) {
+                const active = (layer.data.activeFile as number | undefined) ?? 0
+                const updatedFiles = [...files]
+                if (updatedFiles[active]) {
+                  updatedFiles[active] = { ...updatedFiles[active], name: title }
+                }
+                update({ data: { ...layer.data, files: updatedFiles } })
+              } else {
+                update({ data: { ...layer.data, title } })
+              }
+            }
+          : undefined
+      }
+      onChangeActiveFile={
+        update && mode === 'editor'
+          ? (activeFile) => update({ data: { ...layer.data, activeFile } })
+          : undefined
+      }
+      onChangeRange={
+        update && mode === 'editor'
+          ? (range) => update({ data: { ...layer.data, visibleRange: range } })
+          : undefined
+      }
+      onAddFile={
+        update && mode === 'editor'
+          ? () => {
+              const files = layer.data.files as import('./components/code-block').CodeFile[] | undefined
+              const existing = files && files.length > 0
+                ? files
+                : [{
+                    name: (layer.data.title as string | undefined) ?? 'main.ts',
+                    code: (layer.data.code as string | undefined) ?? '',
+                    language: (layer.data.language as string | undefined) ?? 'typescript'
+                  }]
+              const newFile = { name: 'untitled.ts', code: '', language: 'typescript' }
+              const updatedFiles = [...existing, newFile]
+              update({
+                data: {
+                  ...layer.data,
+                  files: updatedFiles,
+                  activeFile: updatedFiles.length - 1
+                }
+              })
+            }
+          : undefined
+      }
+      onRemoveFile={
+        update && mode === 'editor'
+          ? (index) => {
+              const files = layer.data.files as import('./components/code-block').CodeFile[] | undefined
+              const visibleFiles = files && files.length > 0
+                ? files
+                : [{
+                    name: (layer.data.title as string | undefined) ?? 'main.ts',
+                    code: (layer.data.code as string | undefined) ?? '',
+                    language: (layer.data.language as string | undefined) ?? 'typescript'
+                  }]
+              const updatedFiles = visibleFiles.filter((_, i) => i !== index)
+              const active = (layer.data.activeFile as number | undefined) ?? 0
+              const nextActive = Math.max(0, active >= updatedFiles.length ? updatedFiles.length - 1 : active)
+              
+              if (updatedFiles.length > 1) {
+                update({
+                  data: {
+                    ...layer.data,
+                    files: updatedFiles,
+                    activeFile: nextActive
+                  }
+                })
+              } else if (updatedFiles.length === 1) {
+                update({
+                  data: {
+                    ...layer.data,
+                    files: undefined,
+                    activeFile: undefined,
+                    title: updatedFiles[0].name,
+                    code: updatedFiles[0].code,
+                    language: updatedFiles[0].language
+                  }
+                })
+              }
+            }
+          : undefined
+      }
+      fromCode={(frame as any)?.fromCode}
+      animProgress={(frame as any)?.animProgress}
     />
   ),
 })
-
 registerComponent({
   type: 'container',
   label: 'Container',

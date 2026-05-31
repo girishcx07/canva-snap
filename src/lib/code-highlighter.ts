@@ -1,7 +1,15 @@
 import { createHighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
-export type CodeTheme = 'github-light' | 'github-dark'
+export type CodeTheme =
+  | 'github-light'
+  | 'github-dark'
+  | 'dracula'
+  | 'nord'
+  | 'one-dark-pro'
+  | 'monokai'
+  | 'solarized-dark'
+  | 'solarized-light'
 
 export type HighlightedCode = {
   background?: string
@@ -18,8 +26,14 @@ export type HighlightedToken = {
 }
 
 export const codeThemeOptions = [
-  { label: 'Light', value: 'github-light' },
-  { label: 'Dark', value: 'github-dark' },
+  { label: 'GitHub Dark', value: 'github-dark' },
+  { label: 'GitHub Light', value: 'github-light' },
+  { label: 'Dracula', value: 'dracula' },
+  { label: 'Nord', value: 'nord' },
+  { label: 'One Dark Pro', value: 'one-dark-pro' },
+  { label: 'Monokai', value: 'monokai' },
+  { label: 'Solarized Dark', value: 'solarized-dark' },
+  { label: 'Solarized Light', value: 'solarized-light' },
 ] satisfies { label: string; value: CodeTheme }[]
 
 const languageLoaders = {
@@ -57,6 +71,12 @@ const languageLoaders = {
 const themeLoaders = {
   'github-dark': () => import('shiki/themes/github-dark.mjs'),
   'github-light': () => import('shiki/themes/github-light.mjs'),
+  'dracula': () => import('shiki/themes/dracula.mjs'),
+  'nord': () => import('shiki/themes/nord.mjs'),
+  'one-dark-pro': () => import('shiki/themes/one-dark-pro.mjs'),
+  'monokai': () => import('shiki/themes/monokai.mjs'),
+  'solarized-dark': () => import('shiki/themes/solarized-dark.mjs'),
+  'solarized-light': () => import('shiki/themes/solarized-light.mjs'),
 } satisfies Record<CodeTheme, () => Promise<unknown>>
 
 export const codeLanguages = Object.keys(languageLoaders).sort()

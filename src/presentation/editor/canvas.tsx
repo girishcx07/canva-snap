@@ -278,6 +278,20 @@ export function Canvas({ store }: { store: EditorStore }) {
 
   // Drag empty space = pan; click without drag = deselect.
   function onBackgroundPointerDown(e: React.PointerEvent) {
+    const target = e.target as HTMLElement
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'BUTTON' ||
+      target.isContentEditable ||
+      target.closest('input') ||
+      target.closest('textarea') ||
+      target.closest('button') ||
+      target.closest('[contenteditable="true"]')
+    ) {
+      return
+    }
+
     const startX = e.clientX
     const startY = e.clientY
     let moved = false
